@@ -44,7 +44,13 @@ func main() {
 	} else {
 		repo = database.NewRepository(db.DB())
 	}
-	srv := server.NewServer(":4545", repo, "internal/ui_server/static")
+	reloadChan := make(chan struct{}, 1)
+	srv := server.NewServer(":4545", repo, "internal/ui_server/static", func() {
+		select {
+		case reloadChan <- struct{}{}:
+		default:
+		}
+	})
 	proxyService := proxy.NewService(repo)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,8 +68,25 @@ func main() {
 		log.Println("server: stopped")
 	}()
 
-	if err := proxyService.Run(runCtx); err != nil {
-		log.Fatalf("proxy: %v", err)
+	// Run proxy under a cancellable context so "reload" from UI can restart it (pick up new source servers).
+	for {
+		proxyCtx, proxyCancel := context.WithCancel(runCtx)
+		proxyDone := make(chan struct{})
+		go func() {
+			_ = proxyService.Run(proxyCtx)
+			close(proxyDone)
+		}()
+		select {
+		case <-runCtx.Done():
+			proxyCancel()
+			<-proxyDone
+			log.Println("proxy: stopped")
+			return
+		case <-reloadChan:
+			log.Println("proxy: reload requested, restarting…")
+			proxyCancel()
+			<-proxyDone
+			log.Println("proxy: restarted")
+		}
 	}
-	log.Println("proxy: stopped")
 }

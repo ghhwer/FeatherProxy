@@ -607,10 +607,13 @@ document.getElementById('edit-route-source').addEventListener('change', function
   fillRouteTargetSelect('edit-route-target', '', protocol);
 });
 
-function refreshAll() {
-  Promise.all([loadSourceServers(), loadTargetServers(), loadAuthentications()]).then(function () {
-    return loadRoutes();
-  });
+async function refreshAll() {
+  const reloadResult = await api.reloadProxies();
+  if (!reloadResult.ok) {
+    console.warn('Reload proxies:', reloadResult.error);
+  }
+  await Promise.all([loadSourceServers(), loadTargetServers(), loadAuthentications()]);
+  await loadRoutes();
 }
 
 // Tab switching: show one section, hide others, update nav and title

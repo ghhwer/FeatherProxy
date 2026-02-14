@@ -181,3 +181,13 @@ export async function putRouteTargetAuth(uuid, authentication_uuid) {
     body: JSON.stringify({ authentication_uuid })
   });
 }
+
+/** POST /api/reload — trigger proxy restart so new source servers are picked up. */
+export async function reloadProxies() {
+  const res = await fetch('/api/reload', { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error || res.statusText };
+  }
+  return { ok: true, data };
+}

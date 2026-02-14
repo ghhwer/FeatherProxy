@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -12,6 +13,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// API
+	mux.HandleFunc("/api/reload", s.handleReload)
 	mux.HandleFunc("/api/source-servers", s.handleSourceServersCollection)
 	mux.HandleFunc("/api/source-servers/", s.handleSourceServerByID)
 	mux.HandleFunc("/api/target-servers", s.handleTargetServersCollection)
@@ -25,6 +27,28 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/", s.handleStatic)
 
 	return mux
+}
+
+// handleReload: POST /api/reload triggers proxy restart (reloads source servers). Requires OnReload to be set.
+func (s *Server) handleReload(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/reload" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.onReload == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "reload not configured"})
+		return
+	}
+	s.onReload()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"ok": "reload triggered"})
 }
 
 // handleRoutesCollection: GET /api/routes (list), POST /api/routes (create).

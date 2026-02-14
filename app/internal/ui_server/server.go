@@ -15,12 +15,14 @@ type Server struct {
 	staticDir  string
 	httpServer *http.Server
 	repo       database.Repository
+	onReload   func() // optional: when set, POST /api/reload triggers proxy restart
 }
 
 // NewServer builds a server that serves the UI and route API on the given address.
 // staticDir is the path to the directory containing static files (e.g. index.html, app.js); served from disk, not embedded.
-func NewServer(addr string, repo database.Repository, staticDir string) *Server {
-	s := &Server{addr: addr, staticDir: staticDir, repo: repo}
+// onReload is optional; when non-nil, POST /api/reload will call it to restart the proxy (e.g. after adding source servers).
+func NewServer(addr string, repo database.Repository, staticDir string, onReload func()) *Server {
+	s := &Server{addr: addr, staticDir: staticDir, repo: repo, onReload: onReload}
 	s.httpServer = &http.Server{
 		Addr:         addr,
 		Handler:      s.Routes(),
