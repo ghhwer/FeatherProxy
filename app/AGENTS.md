@@ -12,7 +12,10 @@ app/
 └── internal/
     ├── database/
     │   ├── handler.go      # DB connection (GORM), config from env, AutoMigrate, Close
-    │   ├── repository.go   # Repository interface + impl; uses schema types, talks to DB via objects
+    │   ├── repository.go   # Repository type alias, ErrProtocolMismatch re-export, NewRepository constructor
+    │   ├── repo/           # Repository interface and ErrProtocolMismatch (no impl deps)
+    │   ├── impl/           # Concrete repository implementation (GORM, objects, schema conversions)
+    │   ├── token/          # EncryptToken / DecryptToken for auth tokens (used by impl)
     │   ├── schema/         # Domain / API types (no ORM; JSON-friendly)
     │   │   └── <ENTITY>.go
     │   └── objects/        # ORM entities (GORM tags, table names); schema ↔ object conversion
