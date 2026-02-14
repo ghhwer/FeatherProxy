@@ -29,21 +29,24 @@ func (r *repository) CreateAuthentication(a schema.Authentication) error {
 		return err
 	}
 	log.Printf("auth/repo: CreateAuthentication ok id=%s", a.AuthenticationUUID)
-	return nil
+	return r.invalidate(nil, []string{keyAuth(a.AuthenticationUUID), keyListAuthentications}, nil)
 }
 
 func (r *repository) GetAuthentication(id uuid.UUID) (schema.Authentication, error) {
-	log.Printf("auth/repo: GetAuthentication id=%s", id)
-	var obj objects.Authentication
-	if err := r.db.Where("authentication_uuid = ?", id).First(&obj).Error; err != nil {
-		log.Printf("auth/repo: GetAuthentication not found or error: %v", err)
-		return schema.Authentication{}, err
-	}
-	out := objects.AuthenticationToSchema(&obj)
-	out.TokenMasked = tokenMaskedPlaceholder
-	return out, nil
+	return getCached(r, keyAuth(id), func() (schema.Authentication, error) {
+		log.Printf("auth/repo: GetAuthentication id=%s", id)
+		var obj objects.Authentication
+		if err := r.db.Where("authentication_uuid = ?", id).First(&obj).Error; err != nil {
+			log.Printf("auth/repo: GetAuthentication not found or error: %v", err)
+			return schema.Authentication{}, err
+		}
+		out := objects.AuthenticationToSchema(&obj)
+		out.TokenMasked = tokenMaskedPlaceholder
+		return out, nil
+	})
 }
 
+// GetAuthenticationWithPlainToken is not cached (security: decrypted token).
 func (r *repository) GetAuthenticationWithPlainToken(id uuid.UUID) (schema.Authentication, error) {
 	log.Printf("auth/repo: GetAuthenticationWithPlainToken id=%s (for proxy)", id)
 	var obj objects.Authentication
@@ -84,31 +87,29 @@ func (r *repository) UpdateAuthentication(a schema.Authentication) error {
 		return err
 	}
 	log.Printf("auth/repo: UpdateAuthentication ok id=%s", a.AuthenticationUUID)
-	return nil
+	return r.invalidate(nil, []string{keyAuth(a.AuthenticationUUID), keyListAuthentications}, []string{keyPrefixTargetAuthForRoute})
 }
 
 func (r *repository) DeleteAuthentication(id uuid.UUID) error {
 	log.Printf("auth/repo: DeleteAuthentication id=%s", id)
-	err := r.db.Delete(&objects.Authentication{AuthenticationUUID: id}).Error
-	if err != nil {
-		log.Printf("auth/repo: DeleteAuthentication error: %v", err)
-		return err
-	}
-	return nil
+	return r.invalidate(r.db.Delete(&objects.Authentication{AuthenticationUUID: id}).Error,
+		[]string{keyAuth(id), keyListAuthentications}, []string{keyPrefixTargetAuthForRoute})
 }
 
 func (r *repository) ListAuthentications() ([]schema.Authentication, error) {
-	log.Printf("auth/repo: ListAuthentications")
-	var list []objects.Authentication
-	if err := r.db.Find(&list).Error; err != nil {
-		log.Printf("auth/repo: ListAuthentications error: %v", err)
-		return nil, err
-	}
-	out := make([]schema.Authentication, len(list))
-	for i := range list {
-		out[i] = objects.AuthenticationToSchema(&list[i])
-		out[i].TokenMasked = tokenMaskedPlaceholder
-	}
-	log.Printf("auth/repo: ListAuthentications ok count=%d", len(out))
-	return out, nil
+	return getCached(r, keyListAuthentications, func() ([]schema.Authentication, error) {
+		log.Printf("auth/repo: ListAuthentications")
+		var list []objects.Authentication
+		if err := r.db.Find(&list).Error; err != nil {
+			log.Printf("auth/repo: ListAuthentications error: %v", err)
+			return nil, err
+		}
+		out := make([]schema.Authentication, len(list))
+		for i := range list {
+			out[i] = objects.AuthenticationToSchema(&list[i])
+			out[i].TokenMasked = tokenMaskedPlaceholder
+		}
+		log.Printf("auth/repo: ListAuthentications ok count=%d", len(out))
+		return out, nil
+	})
 }

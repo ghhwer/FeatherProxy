@@ -12,9 +12,10 @@ app/
 └── internal/
     ├── database/
     │   ├── handler.go      # DB connection (GORM), config from env, AutoMigrate, Close
-    │   ├── repository.go   # Repository type alias, ErrProtocolMismatch re-export, NewRepository constructor
+    │   ├── repository.go   # Repository type alias, NewRepository, NewCachedRepository
     │   ├── repo/           # Repository interface and ErrProtocolMismatch (no impl deps)
-    │   ├── impl/           # Concrete repository implementation (GORM, objects, schema conversions)
+    │   ├── impl/           # Concrete repository (GORM + cache); cache_helpers.go has getCached/invalidate and keys
+    │   ├── cache/          # Cache interface (Get, Set, Delete, DeleteByPrefix); strategies: none, memory, redis stub
     │   ├── token/          # EncryptToken / DecryptToken for auth tokens (used by impl)
     │   ├── schema/         # Domain / API types (no ORM; JSON-friendly)
     │   │   └── <ENTITY>.go
@@ -41,9 +42,22 @@ app/
 
 ## Conventions to follow
 
-1. **New domain entities**: Add a type in `database/schema`, a matching type and conversions in `database/objects`, register in `Handler.AutoMigrate`, extend `Repository` and `repository` impl, then add API routes and handlers in `server` using schema types only.
+1. **New domain entities**: Add a type in `database/schema`, a matching type and conversions in `database/objects`, register in `Handler.AutoMigrate`, extend `Repository` in `repo/repo.go` and implement in `impl/` (with cache), then add API routes and handlers in `server` using schema types only. See **New entities with cache** below.
 2. **New API surface**: Add routes in `routes.go`, implement handlers in `handlers.go` (or a new file in `server`). Handlers call `s.repo` and work with `schema.*`; never use `objects.*` or `*gorm.DB` in `internal/server`.
 3. **Static assets**: Add files under `internal/server/static/`, embed in `ui.go`, and register path in `Routes()`.
 4. **Package boundaries**: `internal/server` and `internal/proxy` may import `internal/database` and `internal/database/schema` only (and stdlib). `internal/database` may import `internal/database/schema` and `internal/database/objects`. `internal/database/objects` may import `internal/database/schema`; keep GORM and DB details inside `database` and `objects`.
+
+## New entities with cache
+
+Caching is built into the repository implementation in `impl/`. When adding a new entity you only touch `repo/`, `impl/`, and (as usual) schema, objects, handler, and server. No separate cache wrapper.
+
+1. **Schema and objects** (unchanged): Add `schema/<ENTITY>.go`, `objects/<ENTITY>.go` with conversions, register the object in `Handler.AutoMigrate`.
+2. **Repository interface**: Extend `repo/repo.go` with the new methods (e.g. `GetFoo(id)`, `CreateFoo`, `UpdateFoo`, `DeleteFoo`, `ListFoos`).
+3. **Cache keys in `impl/cache_helpers.go`**: Add key constants and key builder funcs for the entity, e.g. `keyPrefixFoo = "foo:"`, `keyFoo(id)`, `keyListFoos = "list:foos"`. Follow the existing pattern (single-item keys like `entity:id`, list key like `list:entities`).
+4. **Implementation in `impl/`** (new file e.g. `impl/foo.go` or in an existing entity file):
+   - **Getters** (including list): Use `getCached(r, key, func() (T, error) { ... DB logic, return schema value ... })`. Put the actual GORM/objects logic inside the delegate; the helper handles cache read, JSON marshal/unmarshal, and cache write on miss.
+   - **Mutations** (Create/Update/Delete/Set*): Do the DB work, then `return r.invalidate(err, keys, prefixes)`. Pass the DB error as first argument; on success pass the exact keys to delete (e.g. the entity key and the list key) and any prefixes to clear (e.g. `keyPrefixRoute` when any route changes). For a simple entity: `r.invalidate(r.db.Create(&obj).Error, []string{keyFoo(id), keyListFoos}, nil)`.
+   - **Do not cache** methods that return sensitive or decrypted data (e.g. plain tokens). Call the DB directly and do not wrap in `getCached`.
+5. **Invalidation rules**: On Create/Update/Delete of an entity, invalidate that entity’s key(s) and its list key. If the entity is referenced by others (e.g. routes reference servers), invalidate any cache entries that depend on it (e.g. when an auth is updated, we invalidate `keyPrefixTargetAuthForRoute`). See existing impl files for examples.
 
 Keeping these layers and the schema/objects split consistent will keep the codebase predictable for both humans and AI.

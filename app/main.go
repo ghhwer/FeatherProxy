@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"FeatherProxy/app/internal/database"
+	"FeatherProxy/app/internal/database/cache"
 	"FeatherProxy/app/internal/proxy"
 	"FeatherProxy/app/internal/ui_server"
 
@@ -32,7 +33,16 @@ func main() {
 	}
 	log.Println("database: connected and migrated")
 
-	repo := database.NewRepository(db.DB())
+	var repo database.Repository
+	if c, ttl, err := cache.FromEnv(); err != nil {
+		log.Printf("cache: %v (using repo without cache)", err)
+		repo = database.NewRepository(db.DB())
+	} else if c != nil {
+		repo = database.NewCachedRepository(db.DB(), c, ttl)
+		log.Println("cache: enabled")
+	} else {
+		repo = database.NewRepository(db.DB())
+	}
 	srv := server.NewServer(":4545", repo)
 	proxyService := proxy.NewService(repo)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

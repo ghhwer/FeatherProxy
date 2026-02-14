@@ -12,18 +12,20 @@ import (
 )
 
 func (r *repository) ListSourceAuthsForRoute(routeUUID uuid.UUID) ([]schema.RouteSourceAuth, error) {
-	log.Printf("route_auth/repo: ListSourceAuthsForRoute route=%s", routeUUID)
-	var list []objects.RouteSourceAuth
-	if err := r.db.Where("route_uuid = ?", routeUUID).Order("position").Find(&list).Error; err != nil {
-		log.Printf("route_auth/repo: ListSourceAuthsForRoute error: %v", err)
-		return nil, err
-	}
-	out := make([]schema.RouteSourceAuth, len(list))
-	for i := range list {
-		out[i] = objects.RouteSourceAuthToSchema(&list[i])
-	}
-	log.Printf("route_auth/repo: ListSourceAuthsForRoute ok route=%s count=%d", routeUUID, len(out))
-	return out, nil
+	return getCached(r, keyRouteSourceAuths(routeUUID), func() ([]schema.RouteSourceAuth, error) {
+		log.Printf("route_auth/repo: ListSourceAuthsForRoute route=%s", routeUUID)
+		var list []objects.RouteSourceAuth
+		if err := r.db.Where("route_uuid = ?", routeUUID).Order("position").Find(&list).Error; err != nil {
+			log.Printf("route_auth/repo: ListSourceAuthsForRoute error: %v", err)
+			return nil, err
+		}
+		out := make([]schema.RouteSourceAuth, len(list))
+		for i := range list {
+			out[i] = objects.RouteSourceAuthToSchema(&list[i])
+		}
+		log.Printf("route_auth/repo: ListSourceAuthsForRoute ok route=%s count=%d", routeUUID, len(out))
+		return out, nil
+	})
 }
 
 func (r *repository) SetSourceAuthsForRoute(routeUUID uuid.UUID, authUUIDs []uuid.UUID) error {
@@ -44,22 +46,25 @@ func (r *repository) SetSourceAuthsForRoute(routeUUID uuid.UUID, authUUIDs []uui
 		}
 	}
 	log.Printf("route_auth/repo: SetSourceAuthsForRoute ok route=%s", routeUUID)
-	return nil
+	return r.invalidate(nil, []string{keyRouteSourceAuths(routeUUID)}, nil)
 }
 
 func (r *repository) GetTargetAuthForRoute(routeUUID uuid.UUID) (uuid.UUID, bool, error) {
-	log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s", routeUUID)
-	var obj objects.RouteTargetAuth
-	if err := r.db.Where("route_uuid = ?", routeUUID).First(&obj).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s no target auth", routeUUID)
-			return uuid.Nil, false, nil
+	v, err := getCached(r, keyTargetAuthForRoute(routeUUID), func() (targetAuthCached, error) {
+		log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s", routeUUID)
+		var obj objects.RouteTargetAuth
+		if err := r.db.Where("route_uuid = ?", routeUUID).First(&obj).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s no target auth", routeUUID)
+				return targetAuthCached{}, nil
+			}
+			log.Printf("route_auth/repo: GetTargetAuthForRoute error: %v", err)
+			return targetAuthCached{}, err
 		}
-		log.Printf("route_auth/repo: GetTargetAuthForRoute error: %v", err)
-		return uuid.Nil, false, err
-	}
-	log.Printf("route_auth/repo: GetTargetAuthForRoute ok route=%s auth=%s", routeUUID, obj.AuthenticationUUID)
-	return obj.AuthenticationUUID, true, nil
+		log.Printf("route_auth/repo: GetTargetAuthForRoute ok route=%s auth=%s", routeUUID, obj.AuthenticationUUID)
+		return targetAuthCached{AuthUUID: obj.AuthenticationUUID, OK: true}, nil
+	})
+	return v.AuthUUID, v.OK, err
 }
 
 func (r *repository) SetTargetAuthForRoute(routeUUID uuid.UUID, authUUID *uuid.UUID) error {
@@ -83,9 +88,10 @@ func (r *repository) SetTargetAuthForRoute(routeUUID uuid.UUID, authUUID *uuid.U
 		}
 	}
 	log.Printf("route_auth/repo: SetTargetAuthForRoute ok route=%s", routeUUID)
-	return nil
+	return r.invalidate(nil, []string{keyTargetAuthForRoute(routeUUID)}, nil)
 }
 
+// GetTargetAuthenticationWithPlainToken is not cached (security: decrypted token).
 func (r *repository) GetTargetAuthenticationWithPlainToken(routeUUID uuid.UUID) (schema.Authentication, bool, error) {
 	log.Printf("route_auth/repo: GetTargetAuthenticationWithPlainToken route=%s", routeUUID)
 	authUUID, ok, err := r.GetTargetAuthForRoute(routeUUID)

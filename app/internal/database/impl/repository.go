@@ -1,7 +1,9 @@
 package impl
 
 import (
+	"FeatherProxy/app/internal/database/cache"
 	"FeatherProxy/app/internal/database/repo"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -15,10 +17,23 @@ func protocolsCompatible(source, target string) bool {
 }
 
 type repository struct {
-	db *gorm.DB
+	db    *gorm.DB
+	c     cache.Cache
+	ttl   time.Duration
 }
 
-// New returns a Repository implementation backed by the given DB.
+// New returns a Repository implementation backed by the given DB (no cache).
 func New(db *gorm.DB) repo.Repository {
-	return &repository{db: db}
+	return &repository{db: db, c: cache.NoOp{}, ttl: cache.DefaultTTL}
+}
+
+// NewWithCache returns a Repository implementation backed by the given DB and cache.
+func NewWithCache(db *gorm.DB, c cache.Cache, ttl time.Duration) repo.Repository {
+	if c == nil {
+		c = cache.NoOp{}
+	}
+	if ttl <= 0 {
+		ttl = cache.DefaultTTL
+	}
+	return &repository{db: db, c: c, ttl: ttl}
 }
