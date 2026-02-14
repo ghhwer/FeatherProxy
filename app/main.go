@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"FeatherProxy/app/internal/database"
-	"FeatherProxy/app/internal/server"
+	"FeatherProxy/app/internal/ui_server"
 
 	"github.com/joho/godotenv"
 )
