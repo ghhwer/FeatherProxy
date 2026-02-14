@@ -38,25 +38,31 @@ func main() {
 		log.Printf("cache: %v (using repo without cache)", err)
 		repo = database.NewRepository(db.DB())
 	} else if c != nil {
+		defer c.Close() // stop cache goroutines so process can exit on Ctrl+C
 		repo = database.NewCachedRepository(db.DB(), c, ttl)
 		log.Println("cache: enabled")
 	} else {
 		repo = database.NewRepository(db.DB())
 	}
-	srv := server.NewServer(":4545", repo)
+	srv := server.NewServer(":4545", repo, "internal/ui_server/static")
 	proxyService := proxy.NewService(repo)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Cancel the whole process if the UI server fails (e.g. port in use).
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	go func() {
 		log.Println("server: listening on http://localhost:4545")
-		if err := srv.Run(ctx); err != nil {
+		if err := srv.Run(runCtx); err != nil {
 			log.Printf("server: %v", err)
+			cancel() // so proxy exits and process terminates
 		}
 		log.Println("server: stopped")
 	}()
 
-	if err := proxyService.Run(ctx); err != nil {
+	if err := proxyService.Run(runCtx); err != nil {
 		log.Fatalf("proxy: %v", err)
 	}
 	log.Println("proxy: stopped")

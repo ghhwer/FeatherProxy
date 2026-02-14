@@ -23,7 +23,7 @@ app/
     │       └── <ENTITY>.go
     ├── proxy/          # Proxy service: per–source-server listeners, route lookup, reverse proxy
     │   └── service.go
-    └── ui_server/...   # HTTP server struct, NewServer(addr, repo), Routes(), Run(ctx)
+    └── ui_server/...   # HTTP server struct, NewServer(addr, repo, staticDir), Routes(), Run(ctx)
 ```
 
 ## Design patterns
@@ -33,7 +33,7 @@ app/
   - **`internal/database/schema`**: Domain/API types. Used in handlers, repository interface, and any app/cache logic. No GORM; JSON tags for API.  
   - **`internal/database/objects`**: Persistence-only types. GORM struct tags, `TableName()`, soft delete, etc. Conversion lives here: `XToSchema` / `SchemaToX` so the rest of the app never touches ORM types.
 - **Dependency injection**: `main` builds `Handler` → `Repository(db)` → `Server(addr, repo)`. Server holds `Repository` and uses it in handlers; no direct DB access in `internal/server`.
-- **HTTP stack**: Standard library only. `http.ServeMux` in `Routes()`; no third-party router. API under `/api/`, UI and static assets at `/`, `/styles.css`, `/app.js`. Static files are embedded in `ui.go`.
+- **HTTP stack**: Standard library only. `http.ServeMux` in `Routes()`; no third-party router. API under `/api/`. Static files under `staticDir` are served from disk (no embed) at `/`.
 - **Config**: Database driver and DSN come from `.env` (`DB_DRIVER`, `DB_DSN`). `main` loads env (e.g. godotenv) before creating the DB handler.
 
 ## Proxy

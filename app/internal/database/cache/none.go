@@ -27,3 +27,6 @@ func (NoOp) Delete(_ context.Context, _ string) error {
 func (NoOp) DeleteByPrefix(_ context.Context, _ string) error {
 	return nil
 }
+
+// Close is a no-op.
+func (NoOp) Close() {}

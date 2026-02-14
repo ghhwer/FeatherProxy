@@ -1,13 +1,17 @@
-const API_ROUTES = '/api/routes';
-const API_SOURCE = '/api/source-servers';
-const API_TARGET = '/api/target-servers';
-const API_AUTH = '/api/authentications';
+/**
+ * FeatherProxy UI — App entry and UI logic.
+ * Uses api.js for all backend calls.
+ */
 
+import * as api from './api.js';
+
+// --- State (owned by UI) ---
 let sourceServers = [];
 let targetServers = [];
 let authentications = [];
 let routes = [];
 
+// --- DOM helpers ---
 function showError(el, msg) {
   el.textContent = msg || '';
   el.classList.toggle('hidden', !msg);
@@ -19,22 +23,9 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-async function switchTab(tabId) {
-  document.querySelectorAll('.nav-tabs .tab').forEach(function (t) {
-    t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
-  });
-  document.querySelectorAll('.tab-panel').forEach(function (p) {
-    p.classList.toggle('active', p.id === 'panel-' + tabId);
-  });
-  if (tabId === 'source-servers') loadSourceServers();
-  if (tabId === 'target-servers') loadTargetServers();
-  if (tabId === 'authentications') loadAuthentications();
-  if (tabId === 'routes') {
-    await loadSourceServers();
-    await loadTargetServers();
-    await loadAuthentications();
-    await loadRoutes();
-  }
+function updateStat(section, count) {
+  const el = document.getElementById('stat-' + section + '-count');
+  if (el) el.textContent = typeof count === 'number' ? count : '—';
 }
 
 function serverLabel(s) {
@@ -42,15 +33,29 @@ function serverLabel(s) {
   return escapeHtml(s.host + ':' + s.port);
 }
 
-// --- Source servers ---
+function sourceById(uuid) {
+  return sourceServers.find(function (s) { return s.source_server_uuid === uuid; });
+}
+function targetById(uuid) {
+  return targetServers.find(function (t) { return t.target_server_uuid === uuid; });
+}
+
+function protocolsCompatible(sourceProtocol, targetProtocol) {
+  if (sourceProtocol === targetProtocol) return true;
+  return (sourceProtocol === 'http' && targetProtocol === 'https') || (sourceProtocol === 'https' && targetProtocol === 'http');
+}
+
+// --- Source servers (UI) ---
 async function loadSourceServers() {
   const tbody = document.getElementById('source-servers-tbody');
-  const res = await fetch(API_SOURCE);
-  if (!res.ok) {
+  const result = await api.getSourceServers();
+  if (!result.ok) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load source servers</td></tr>';
+    updateStat('sources', '—');
     return;
   }
-  sourceServers = await res.json();
+  sourceServers = result.data;
+  updateStat('sources', sourceServers.length);
   if (sourceServers.length === 0) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty">No source servers yet. Add one to get started.</td></tr>';
     return;
@@ -86,19 +91,14 @@ async function submitCreateSource(e) {
     showError(errEl, 'Port must be 1–65535');
     return;
   }
-  const res = await fetch(API_SOURCE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: fd.get('name') || '',
-      protocol: fd.get('protocol'),
-      host: fd.get('host'),
-      port: port
-    })
+  const result = await api.createSourceServer({
+    name: fd.get('name') || '',
+    protocol: fd.get('protocol'),
+    host: fd.get('host'),
+    port: port
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeCreateSourceModal();
@@ -110,9 +110,9 @@ function closeEditSourceModal() {
 }
 
 async function editSource(uuid) {
-  const res = await fetch(API_SOURCE + '/' + uuid);
-  if (!res.ok) return;
-  const s = await res.json();
+  const result = await api.getSourceServer(uuid);
+  if (!result.ok) return;
+  const s = result.data;
   const form = document.getElementById('edit-source-form');
   form.querySelector('[name="source_server_uuid"]').value = s.source_server_uuid;
   form.querySelector('[name="name"]').value = s.name || '';
@@ -133,19 +133,14 @@ async function submitEditSource(e) {
     showError(errEl, 'Port must be 1–65535');
     return;
   }
-  const res = await fetch(API_SOURCE + '/' + uuid, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: fd.get('name') || '',
-      protocol: fd.get('protocol'),
-      host: fd.get('host'),
-      port: port
-    })
+  const result = await api.updateSourceServer(uuid, {
+    name: fd.get('name') || '',
+    protocol: fd.get('protocol'),
+    host: fd.get('host'),
+    port: port
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeEditSourceModal();
@@ -154,19 +149,24 @@ async function submitEditSource(e) {
 
 async function deleteSource(uuid) {
   if (!confirm('Delete this source server?')) return;
-  const res = await fetch(API_SOURCE + '/' + uuid, { method: 'DELETE' });
-  if (res.ok) loadSourceServers();
+  const result = await api.deleteSourceServer(uuid);
+  if (result.ok) {
+    loadSourceServers();
+    loadRoutes();
+  }
 }
 
-// --- Target servers ---
+// --- Target servers (UI) ---
 async function loadTargetServers() {
   const tbody = document.getElementById('target-servers-tbody');
-  const res = await fetch(API_TARGET);
-  if (!res.ok) {
+  const result = await api.getTargetServers();
+  if (!result.ok) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load target servers</td></tr>';
+    updateStat('targets', '—');
     return;
   }
-  targetServers = await res.json();
+  targetServers = result.data;
+  updateStat('targets', targetServers.length);
   if (targetServers.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty">No target servers yet. Add one to get started.</td></tr>';
     return;
@@ -203,20 +203,15 @@ async function submitCreateTarget(e) {
     showError(errEl, 'Port must be 1–65535');
     return;
   }
-  const res = await fetch(API_TARGET, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: fd.get('name') || '',
-      protocol: fd.get('protocol'),
-      host: fd.get('host'),
-      port: port,
-      base_path: fd.get('base_path') || ''
-    })
+  const result = await api.createTargetServer({
+    name: fd.get('name') || '',
+    protocol: fd.get('protocol'),
+    host: fd.get('host'),
+    port: port,
+    base_path: fd.get('base_path') || ''
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeCreateTargetModal();
@@ -228,9 +223,9 @@ function closeEditTargetModal() {
 }
 
 async function editTarget(uuid) {
-  const res = await fetch(API_TARGET + '/' + uuid);
-  if (!res.ok) return;
-  const t = await res.json();
+  const result = await api.getTargetServer(uuid);
+  if (!result.ok) return;
+  const t = result.data;
   const form = document.getElementById('edit-target-form');
   form.querySelector('[name="target_server_uuid"]').value = t.target_server_uuid;
   form.querySelector('[name="name"]').value = t.name || '';
@@ -252,20 +247,15 @@ async function submitEditTarget(e) {
     showError(errEl, 'Port must be 1–65535');
     return;
   }
-  const res = await fetch(API_TARGET + '/' + uuid, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: fd.get('name') || '',
-      protocol: fd.get('protocol'),
-      host: fd.get('host'),
-      port: port,
-      base_path: fd.get('base_path') || ''
-    })
+  const result = await api.updateTargetServer(uuid, {
+    name: fd.get('name') || '',
+    protocol: fd.get('protocol'),
+    host: fd.get('host'),
+    port: port,
+    base_path: fd.get('base_path') || ''
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeEditTargetModal();
@@ -274,20 +264,25 @@ async function submitEditTarget(e) {
 
 async function deleteTarget(uuid) {
   if (!confirm('Delete this target server?')) return;
-  const res = await fetch(API_TARGET + '/' + uuid, { method: 'DELETE' });
-  if (res.ok) loadTargetServers();
+  const result = await api.deleteTargetServer(uuid);
+  if (result.ok) {
+    loadTargetServers();
+    loadRoutes();
+  }
 }
 
-// --- Authentications ---
+// --- Authentications (UI) ---
 async function loadAuthentications() {
   const tbody = document.getElementById('authentications-tbody');
   if (!tbody) return;
-  const res = await fetch(API_AUTH);
-  if (!res.ok) {
+  const result = await api.getAuthentications();
+  if (!result.ok) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty">Failed to load authentications</td></tr>';
+    updateStat('auths', '—');
     return;
   }
-  authentications = await res.json();
+  authentications = result.data;
+  updateStat('auths', authentications.length);
   if (authentications.length === 0) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty">No authentications yet. Add one to attach to routes.</td></tr>';
     return;
@@ -365,29 +360,19 @@ async function submitAuth(e) {
     };
     const token = fd.get('token');
     if (token && String(token).trim()) payload.token = token;
-    const res = await fetch(API_AUTH + '/' + uuid, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(function () { return {}; });
-    if (!res.ok) {
-      showError(errEl, data.error || res.statusText);
+    const result = await api.updateAuthentication(uuid, payload);
+    if (!result.ok) {
+      showError(errEl, result.error || 'Request failed');
       return;
     }
   } else {
-    const res = await fetch(API_AUTH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: fd.get('name') || '',
-        token_type: fd.get('token_type') || 'bearer',
-        token: fd.get('token')
-      })
+    const result = await api.createAuthentication({
+      name: fd.get('name') || '',
+      token_type: fd.get('token_type') || 'bearer',
+      token: fd.get('token')
     });
-    const data = await res.json().catch(function () { return {}; });
-    if (!res.ok) {
-      showError(errEl, data.error || res.statusText);
+    if (!result.ok) {
+      showError(errEl, result.error || 'Request failed');
       return;
     }
   }
@@ -397,26 +382,18 @@ async function submitAuth(e) {
 }
 
 async function editAuth(uuid) {
-  const res = await fetch(API_AUTH + '/' + uuid);
-  if (!res.ok) return;
-  const a = await res.json();
-  openAuthModal(a);
+  const result = await api.getAuthentication(uuid);
+  if (!result.ok) return;
+  openAuthModal(result.data);
 }
 
 async function deleteAuth(uuid) {
   if (!confirm('Delete this authentication?')) return;
-  const res = await fetch(API_AUTH + '/' + uuid, { method: 'DELETE' });
-  if (res.ok) loadAuthentications();
+  const result = await api.deleteAuthentication(uuid);
+  if (result.ok) loadAuthentications();
 }
 
-// --- Routes ---
-function sourceById(uuid) {
-  return sourceServers.find(function (s) { return s.source_server_uuid === uuid; });
-}
-function targetById(uuid) {
-  return targetServers.find(function (t) { return t.target_server_uuid === uuid; });
-}
-
+// --- Routes (UI helpers + load) ---
 function fillRouteSourceSelect(selectId, selectedUuid) {
   const sel = document.getElementById(selectId);
   sel.innerHTML = '<option value="">Select source server</option>' +
@@ -427,10 +404,6 @@ function fillRouteSourceSelect(selectId, selectedUuid) {
   if (selectedUuid) sel.value = selectedUuid;
 }
 
-function protocolsCompatible(sourceProtocol, targetProtocol) {
-  if (sourceProtocol === targetProtocol) return true;
-  return (sourceProtocol === 'http' && targetProtocol === 'https') || (sourceProtocol === 'https' && targetProtocol === 'http');
-}
 function fillRouteTargetSelect(selectId, selectedUuid, filterByProtocol) {
   const sel = document.getElementById(selectId);
   let list = targetServers;
@@ -464,12 +437,14 @@ function fillRouteAuthSelects(sourceAuthUuids, targetAuthUuid) {
 
 async function loadRoutes() {
   const tbody = document.getElementById('routes-tbody');
-  const res = await fetch(API_ROUTES);
-  if (!res.ok) {
+  const result = await api.getRoutes();
+  if (!result.ok) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load routes</td></tr>';
+    updateStat('routes', '—');
     return;
   }
-  routes = await res.json();
+  routes = result.data;
+  updateStat('routes', routes.length);
   if (routes.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty">No routes yet. Add source and target servers, then add a route.</td></tr>';
     return;
@@ -508,20 +483,15 @@ async function submitCreateRoute(e) {
   e.preventDefault();
   const fd = new FormData(e.target);
   const errEl = document.getElementById('create-route-error');
-  const res = await fetch(API_ROUTES, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source_server_uuid: fd.get('source_server_uuid'),
-      target_server_uuid: fd.get('target_server_uuid'),
-      method: fd.get('method'),
-      source_path: fd.get('source_path'),
-      target_path: fd.get('target_path')
-    })
+  const result = await api.createRoute({
+    source_server_uuid: fd.get('source_server_uuid'),
+    target_server_uuid: fd.get('target_server_uuid'),
+    method: fd.get('method'),
+    source_path: fd.get('source_path'),
+    target_path: fd.get('target_path')
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeCreateRouteModal();
@@ -533,16 +503,16 @@ function closeEditRouteModal() {
 }
 
 async function editRoute(uuid) {
-  const routeRes = await fetch(API_ROUTES + '/' + uuid);
-  if (!routeRes.ok) return;
-  const r = await routeRes.json();
+  const result = await api.getRoute(uuid);
+  if (!result.ok) return;
+  const r = result.data;
   const form = document.getElementById('edit-route-form');
   form.querySelector('[name="route_uuid"]').value = r.route_uuid;
   form.querySelector('[name="method"]').value = r.method || '';
   form.querySelector('[name="source_path"]').value = r.source_path || '';
   form.querySelector('[name="target_path"]').value = r.target_path || '';
   fillRouteSourceSelect('edit-route-source', r.source_server_uuid);
-  var src = sourceById(r.source_server_uuid);
+  const src = sourceById(r.source_server_uuid);
   fillRouteTargetSelect('edit-route-target', r.target_server_uuid, src ? src.protocol : '');
   showError(document.getElementById('edit-route-error'), '');
   document.getElementById('edit-route-modal').classList.remove('hidden');
@@ -553,20 +523,15 @@ async function submitEditRoute(e) {
   const fd = new FormData(e.target);
   const uuid = fd.get('route_uuid');
   const errEl = document.getElementById('edit-route-error');
-  const res = await fetch(API_ROUTES + '/' + uuid, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source_server_uuid: fd.get('source_server_uuid'),
-      target_server_uuid: fd.get('target_server_uuid'),
-      method: fd.get('method'),
-      source_path: fd.get('source_path'),
-      target_path: fd.get('target_path')
-    })
+  const result = await api.updateRoute(uuid, {
+    source_server_uuid: fd.get('source_server_uuid'),
+    target_server_uuid: fd.get('target_server_uuid'),
+    method: fd.get('method'),
+    source_path: fd.get('source_path'),
+    target_path: fd.get('target_path')
   });
-  const data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    showError(errEl, data.error || res.statusText);
+  if (!result.ok) {
+    showError(errEl, result.error || 'Request failed');
     return;
   }
   closeEditRouteModal();
@@ -575,27 +540,27 @@ async function submitEditRoute(e) {
 
 async function deleteRoute(uuid) {
   if (!confirm('Delete this route?')) return;
-  const res = await fetch(API_ROUTES + '/' + uuid, { method: 'DELETE' });
-  if (res.ok) loadRoutes();
+  const result = await api.deleteRoute(uuid);
+  if (result.ok) {
+    loadRoutes();
+  }
 }
 
 async function openRouteAuthModal(routeUuid) {
-  const [routeRes, sourceAuthRes, targetAuthRes] = await Promise.all([
-    fetch(API_ROUTES + '/' + routeUuid),
-    fetch(API_ROUTES + '/' + routeUuid + '/source-auth'),
-    fetch(API_ROUTES + '/' + routeUuid + '/target-auth')
+  const [routeResult, sourceAuthResult, targetAuthResult] = await Promise.all([
+    api.getRoute(routeUuid),
+    api.getRouteSourceAuth(routeUuid),
+    api.getRouteTargetAuth(routeUuid)
   ]);
-  if (!routeRes.ok) return;
-  const r = await routeRes.json();
-  var sourceAuthList = [];
-  var targetAuthUuid = '';
-  if (sourceAuthRes.ok) {
-    var sourceAuthData = await sourceAuthRes.json();
-    sourceAuthList = (sourceAuthData || []).map(function (x) { return x.authentication_uuid; });
+  if (!routeResult.ok) return;
+  const r = routeResult.data;
+  let sourceAuthList = [];
+  let targetAuthUuid = '';
+  if (sourceAuthResult.ok && Array.isArray(sourceAuthResult.data)) {
+    sourceAuthList = sourceAuthResult.data.map(function (x) { return x.authentication_uuid; });
   }
-  if (targetAuthRes.ok) {
-    var targetAuthData = await targetAuthRes.json();
-    if (targetAuthData && targetAuthData.authentication_uuid) targetAuthUuid = targetAuthData.authentication_uuid;
+  if (targetAuthResult.ok && targetAuthResult.data && targetAuthResult.data.authentication_uuid) {
+    targetAuthUuid = targetAuthResult.data.authentication_uuid;
   }
   document.getElementById('route-auth-route-uuid').value = routeUuid;
   document.getElementById('route-auth-modal-title').textContent = 'Route auth: ' + (r.method || '') + ' ' + (r.source_path || '');
@@ -613,41 +578,118 @@ async function submitRouteAuth(e) {
   const fd = new FormData(e.target);
   const uuid = fd.get('route_uuid');
   const errEl = document.getElementById('route-auth-error');
-  var sourceAuthUuids = [];
-  var sel = document.getElementById('route-auth-source-auth');
+  let sourceAuthUuids = [];
+  const sel = document.getElementById('route-auth-source-auth');
   if (sel) {
-    for (var i = 0; i < sel.options.length; i++) {
+    for (let i = 0; i < sel.options.length; i++) {
       if (sel.options[i].selected) sourceAuthUuids.push(sel.options[i].value);
     }
   }
-  var targetAuthUuid = '';
-  var targetSel = document.getElementById('route-auth-target-auth');
+  let targetAuthUuid = '';
+  const targetSel = document.getElementById('route-auth-target-auth');
   if (targetSel && targetSel.value) targetAuthUuid = targetSel.value;
-  const putSource = fetch(API_ROUTES + '/' + uuid + '/source-auth', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ authentication_uuids: sourceAuthUuids })
-  });
-  const putTarget = fetch(API_ROUTES + '/' + uuid + '/target-auth', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ authentication_uuid: targetAuthUuid })
-  });
-  await Promise.all([putSource, putTarget]);
+  await Promise.all([
+    api.putRouteSourceAuth(uuid, sourceAuthUuids),
+    api.putRouteTargetAuth(uuid, targetAuthUuid)
+  ]);
   closeRouteAuthModal();
 }
 
-// Filter target server dropdown by source server protocol (same-protocol rule)
+// --- Event listeners (dropdowns, nav, resize) ---
 document.getElementById('create-route-source').addEventListener('change', function () {
-  var opt = this.options[this.selectedIndex];
-  var protocol = opt ? opt.getAttribute('data-protocol') : '';
+  const opt = this.options[this.selectedIndex];
+  const protocol = opt ? opt.getAttribute('data-protocol') : '';
   fillRouteTargetSelect('create-route-target', '', protocol);
 });
 document.getElementById('edit-route-source').addEventListener('change', function () {
-  var opt = this.options[this.selectedIndex];
-  var protocol = opt ? opt.getAttribute('data-protocol') : '';
+  const opt = this.options[this.selectedIndex];
+  const protocol = opt ? opt.getAttribute('data-protocol') : '';
   fillRouteTargetSelect('edit-route-target', '', protocol);
 });
 
-// Initial load: show source servers tab and load its data
-loadSourceServers();
+function refreshAll() {
+  Promise.all([loadSourceServers(), loadTargetServers(), loadAuthentications()]).then(function () {
+    return loadRoutes();
+  });
+}
+
+// Tab switching: show one section, hide others, update nav and title
+const SECTION_IDS = ['home', 'sources', 'targets', 'auth', 'routes'];
+const SECTION_TITLES = { home: 'Dashboard', sources: 'Source servers', targets: 'Target servers', auth: 'Authentications', routes: 'Routes' };
+
+function showSection(id) {
+  if (!id || SECTION_IDS.indexOf(id) === -1) return;
+  const pageTitleEl = document.getElementById('page-title');
+  SECTION_IDS.forEach(function (sid) {
+    const section = document.getElementById(sid);
+    if (section) section.classList.toggle('hidden', sid !== id);
+  });
+  const nav = document.querySelector('.section-nav');
+  if (nav) {
+    nav.querySelectorAll('.section-nav-link').forEach(function (link) {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+    });
+  }
+  if (pageTitleEl && SECTION_TITLES[id]) pageTitleEl.textContent = SECTION_TITLES[id];
+}
+
+(function () {
+  const nav = document.querySelector('.section-nav');
+  if (!nav) return;
+  nav.addEventListener('click', function (e) {
+    const link = e.target.closest('a[href^="#"]');
+    if (!link || !link.getAttribute('href')) return;
+    const id = link.getAttribute('href').slice(1);
+    if (SECTION_IDS.indexOf(id) !== -1) {
+      e.preventDefault();
+      showSection(id);
+    }
+  });
+  // Home stat cards: click switches to that section
+  document.querySelectorAll('.stat-card-link').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      const id = card.getAttribute('data-section');
+      if (id && SECTION_IDS.indexOf(id) !== -1) {
+        e.preventDefault();
+        showSection(id);
+      }
+    });
+  });
+  // Ensure initial state: home visible, first link active
+  showSection('home');
+})();
+
+// --- Globals for inline handlers in HTML ---
+window.refreshAll = refreshAll;
+window.openCreateSourceModal = openCreateSourceModal;
+window.closeCreateSourceModal = closeCreateSourceModal;
+window.submitCreateSource = submitCreateSource;
+window.closeEditSourceModal = closeEditSourceModal;
+window.editSource = editSource;
+window.submitEditSource = submitEditSource;
+window.deleteSource = deleteSource;
+window.openCreateTargetModal = openCreateTargetModal;
+window.closeCreateTargetModal = closeCreateTargetModal;
+window.submitCreateTarget = submitCreateTarget;
+window.closeEditTargetModal = closeEditTargetModal;
+window.editTarget = editTarget;
+window.submitEditTarget = submitEditTarget;
+window.deleteTarget = deleteTarget;
+window.openAuthModal = function () { openAuthModal(null); };
+window.closeAuthModal = closeAuthModal;
+window.submitAuth = submitAuth;
+window.editAuth = editAuth;
+window.deleteAuth = deleteAuth;
+window.openCreateRouteModal = openCreateRouteModal;
+window.closeCreateRouteModal = closeCreateRouteModal;
+window.submitCreateRoute = submitCreateRoute;
+window.closeEditRouteModal = closeEditRouteModal;
+window.editRoute = editRoute;
+window.submitEditRoute = submitEditRoute;
+window.deleteRoute = deleteRoute;
+window.openRouteAuthModal = openRouteAuthModal;
+window.closeRouteAuthModal = closeRouteAuthModal;
+window.submitRouteAuth = submitRouteAuth;
+
+// Initial load
+refreshAll();

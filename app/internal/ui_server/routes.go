@@ -21,10 +21,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/routes", s.handleRoutesCollection)
 	mux.HandleFunc("/api/routes/", s.handleRouteOrRouteAuth)
 
-	// UI (HTML, CSS, JS served from in-memory embedded files)
-	mux.HandleFunc("/styles.css", s.handleStyles)
-	mux.HandleFunc("/app.js", s.handleScript)
-	mux.HandleFunc("/", s.handleUI)
+	// UI: serve anything under static from disk (no embed)
+	mux.HandleFunc("/", s.handleStatic)
 
 	return mux
 }

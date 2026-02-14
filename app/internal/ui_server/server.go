@@ -12,13 +12,15 @@ import (
 // Server runs the HTTP service for the route management UI and API.
 type Server struct {
 	addr       string
+	staticDir  string
 	httpServer *http.Server
 	repo       database.Repository
 }
 
 // NewServer builds a server that serves the UI and route API on the given address.
-func NewServer(addr string, repo database.Repository) *Server {
-	s := &Server{addr: addr, repo: repo}
+// staticDir is the path to the directory containing static files (e.g. index.html, app.js); served from disk, not embedded.
+func NewServer(addr string, repo database.Repository, staticDir string) *Server {
+	s := &Server{addr: addr, staticDir: staticDir, repo: repo}
 	s.httpServer = &http.Server{
 		Addr:         addr,
 		Handler:      s.Routes(),

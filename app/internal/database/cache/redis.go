@@ -29,3 +29,6 @@ func (Redis) Delete(_ context.Context, _ string) error {
 func (Redis) DeleteByPrefix(_ context.Context, _ string) error {
 	return nil
 }
+
+// Close is a no-op.
+func (Redis) Close() {}

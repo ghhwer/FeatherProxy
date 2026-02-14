@@ -10,12 +10,14 @@ import (
 
 // Cache is the abstract caching interface. Implementations may be in-memory, Redis, or no-op.
 // Values are opaque bytes; callers use encoding/json for schema types.
+// Call Close() when the cache is no longer needed so background goroutines and connections can exit.
 type Cache interface {
 	Get(ctx context.Context, key string) ([]byte, bool)
 	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	// DeleteByPrefix removes all keys that start with prefix. Used for bulk invalidation (e.g. "route:").
 	DeleteByPrefix(ctx context.Context, prefix string) error
+	Close()
 }
 
 // DefaultTTL is the default cache TTL when CACHE_TTL is not set.
