@@ -3,6 +3,8 @@ package server
 import (
 	"net/http"
 	"strings"
+
+	"FeatherProxy/app/internal/ui_server/handlers"
 )
 
 // Routes returns the HTTP handler for the server (API + UI).
@@ -35,9 +37,9 @@ func (s *Server) handleRoutesCollection(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.listRoutes(w, r)
+		handlers.ListRoutes(s.repo, w, r)
 	case http.MethodPost:
-		s.createRoute(w, r)
+		handlers.CreateRoute(s.repo, w, r)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -51,9 +53,9 @@ func (s *Server) handleSourceServersCollection(w http.ResponseWriter, r *http.Re
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.listSourceServers(w, r)
+		handlers.ListSourceServers(s.repo, w, r)
 	case http.MethodPost:
-		s.createSourceServer(w, r)
+		handlers.CreateSourceServer(s.repo, w, r)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -68,11 +70,11 @@ func (s *Server) handleSourceServerByID(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.getSourceServer(w, r, path)
+		handlers.GetSourceServer(s.repo, w, r, path)
 	case http.MethodPut:
-		s.updateSourceServer(w, r, path)
+		handlers.UpdateSourceServer(s.repo, w, r, path)
 	case http.MethodDelete:
-		s.deleteSourceServer(w, r, path)
+		handlers.DeleteSourceServer(s.repo, w, r, path)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -86,9 +88,9 @@ func (s *Server) handleTargetServersCollection(w http.ResponseWriter, r *http.Re
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.listTargetServers(w, r)
+		handlers.ListTargetServers(s.repo, w, r)
 	case http.MethodPost:
-		s.createTargetServer(w, r)
+		handlers.CreateTargetServer(s.repo, w, r)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -103,11 +105,11 @@ func (s *Server) handleTargetServerByID(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.getTargetServer(w, r, path)
+		handlers.GetTargetServer(s.repo, w, r, path)
 	case http.MethodPut:
-		s.updateTargetServer(w, r, path)
+		handlers.UpdateTargetServer(s.repo, w, r, path)
 	case http.MethodDelete:
-		s.deleteTargetServer(w, r, path)
+		handlers.DeleteTargetServer(s.repo, w, r, path)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -129,9 +131,9 @@ func (s *Server) handleRouteOrRouteAuth(w http.ResponseWriter, r *http.Request) 
 	if subPath == "source-auth" {
 		switch r.Method {
 		case http.MethodGet:
-			s.getRouteSourceAuth(w, r, routeIDStr)
+			handlers.GetRouteSourceAuth(s.repo, w, r, routeIDStr)
 		case http.MethodPut:
-			s.putRouteSourceAuth(w, r, routeIDStr)
+			handlers.PutRouteSourceAuth(s.repo, w, r, routeIDStr)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -140,9 +142,9 @@ func (s *Server) handleRouteOrRouteAuth(w http.ResponseWriter, r *http.Request) 
 	if subPath == "target-auth" {
 		switch r.Method {
 		case http.MethodGet:
-			s.getRouteTargetAuth(w, r, routeIDStr)
+			handlers.GetRouteTargetAuth(s.repo, w, r, routeIDStr)
 		case http.MethodPut:
-			s.putRouteTargetAuth(w, r, routeIDStr)
+			handlers.PutRouteTargetAuth(s.repo, w, r, routeIDStr)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -154,11 +156,11 @@ func (s *Server) handleRouteOrRouteAuth(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.getRoute(w, r, routeIDStr)
+		handlers.GetRoute(s.repo, w, r, routeIDStr)
 	case http.MethodPut:
-		s.updateRoute(w, r, routeIDStr)
+		handlers.UpdateRoute(s.repo, w, r, routeIDStr)
 	case http.MethodDelete:
-		s.deleteRoute(w, r, routeIDStr)
+		handlers.DeleteRoute(s.repo, w, r, routeIDStr)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -172,9 +174,9 @@ func (s *Server) handleAuthenticationsCollection(w http.ResponseWriter, r *http.
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.listAuthentications(w, r)
+		handlers.ListAuthentications(s.repo, w, r)
 	case http.MethodPost:
-		s.createAuthentication(w, r)
+		handlers.CreateAuthentication(s.repo, w, r)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -189,11 +191,11 @@ func (s *Server) handleAuthenticationByID(w http.ResponseWriter, r *http.Request
 	}
 	switch r.Method {
 	case http.MethodGet:
-		s.getAuthentication(w, r, path)
+		handlers.GetAuthentication(s.repo, w, r, path)
 	case http.MethodPut:
-		s.updateAuthentication(w, r, path)
+		handlers.UpdateAuthentication(s.repo, w, r, path)
 	case http.MethodDelete:
-		s.deleteAuthentication(w, r, path)
+		handlers.DeleteAuthentication(s.repo, w, r, path)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
