@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FeatherProxy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Icon sprite (hidden) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0" aria-hidden="true">
+    <defs>
+      <symbol id="icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+      <symbol id="icon-sources" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/><line x1="10" y1="6" x2="10.01" y2="6"/><line x1="10" y1="18" x2="10.01" y2="18"/><line x1="14" y1="6" x2="14.01" y2="6"/><line x1="14" y1="18" x2="14.01" y2="18"/><line x1="18" y1="6" x2="18.01" y2="6"/><line x1="18" y1="18" x2="18.01" y2="18"/></symbol>
+      <symbol id="icon-targets" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+      <symbol id="icon-auth" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="icon-routes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="logo-icon" aria-hidden="true">◆</span>
+        <h1 class="sidebar-title">FeatherProxy</h1>
+      </div>
+      <p class="sidebar-tagline">Route management</p>
+      <nav class="section-nav" aria-label="Sections">
+        <a href="#home" class="section-nav-link active">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-home"/></svg>
+          <span>Home</span>
+        </a>
+        <a href="#sources" class="section-nav-link">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-sources"/></svg>
+          <span>Sources</span>
+        </a>
+        <a href="#targets" class="section-nav-link">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-targets"/></svg>
+          <span>Targets</span>
+        </a>
+        <a href="#auth" class="section-nav-link">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-auth"/></svg>
+          <span>Auth</span>
+        </a>
+        <a href="#routes" class="section-nav-link">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-routes"/></svg>
+          <span>Routes</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="btn-refresh" onclick="refreshAll()">Refresh all</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="dashboard-header">
+        <h2 class="page-title" id="page-title">Dashboard</h2>
+      </header>
+
+    <section id="home" class="section">
+      <h2 class="section-title">Overview</h2>
+      <p class="section-desc">Summary of your proxy configuration. Click a card to jump to that section.</p>
+      <div class="stat-cards stat-cards-home">
+        <a href="#sources" class="stat-card stat-card-link" data-section="sources">
+          <span class="stat-card-icon" aria-hidden="true">
+            <svg><use href="#icon-sources"/></svg>
+          </span>
+          <span id="stat-sources-count" class="stat-count">—</span>
+          <span class="stat-label">Source servers</span>
+        </a>
+        <a href="#targets" class="stat-card stat-card-link" data-section="targets">
+          <span class="stat-card-icon" aria-hidden="true">
+            <svg><use href="#icon-targets"/></svg>
+          </span>
+          <span id="stat-targets-count" class="stat-count">—</span>
+          <span class="stat-label">Target servers</span>
+        </a>
+        <a href="#auth" class="stat-card stat-card-link" data-section="auth">
+          <span class="stat-card-icon" aria-hidden="true">
+            <svg><use href="#icon-auth"/></svg>
+          </span>
+          <span id="stat-auths-count" class="stat-count">—</span>
+          <span class="stat-label">Authentications</span>
+        </a>
+        <a href="#routes" class="stat-card stat-card-link" data-section="routes">
+          <span class="stat-card-icon" aria-hidden="true">
+            <svg><use href="#icon-routes"/></svg>
+          </span>
+          <span id="stat-routes-count" class="stat-count">—</span>
+          <span class="stat-label">Routes</span>
+        </a>
+      </div>
+    </section>
+
+    <section id="sources" class="section hidden">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateSourceModal()">Add source server</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Protocol</th>
+            <th>Host</th>
+            <th>Port</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="source-servers-tbody">
+          <tr><td colspan="5" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="targets" class="section hidden">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateTargetModal()">Add target server</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Protocol</th>
+            <th>Host</th>
+            <th>Port</th>
+            <th>Base path</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="target-servers-tbody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="auth" class="section hidden">
+      <div class="toolbar">
+        <button type="button" onclick="openAuthModal()">Add authentication</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Token type</th>
+            <th>Token</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="authentications-tbody">
+          <tr><td colspan="4" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="routes" class="section hidden">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateRouteModal()">Add route</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Source</th>
+            <th>Source path</th>
+            <th>Target</th>
+            <th>Target path</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="routes-tbody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+    </main>
+  </div>
+
+  <!-- Source server modals -->
+  <div id="create-source-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New source server</h2>
+      <div id="create-source-error" class="error hidden"></div>
+      <form id="create-source-form" onsubmit="submitCreateSource(event)">
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" placeholder="My source" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required onchange="toggleCreateSourceTls()">
+            <option value="http">http</option>
+            <option value="https">https</option>
+          </select>
+        </div>
+        <div id="create-source-tls" class="tls-options hidden">
+          <div class="form-group">
+            <label>TLS certificate path</label>
+            <input name="tls_cert_path" placeholder="/path/to/cert.pem" />
+          </div>
+          <div class="form-group">
+            <label>TLS key path</label>
+            <input name="tls_key_path" placeholder="/path/to/key.pem" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required placeholder="0.0.0.0" />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" placeholder="8080" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateSourceModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="edit-source-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit source server</h2>
+      <div id="edit-source-error" class="error hidden"></div>
+      <form id="edit-source-form" onsubmit="submitEditSource(event)">
+        <input type="hidden" name="source_server_uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required onchange="toggleEditSourceTls()">
+            <option value="http">http</option>
+            <option value="https">https</option>
+          </select>
+        </div>
+        <div id="edit-source-tls" class="tls-options hidden">
+          <div class="form-group">
+            <label>TLS certificate path</label>
+            <input name="tls_cert_path" placeholder="/path/to/cert.pem" />
+          </div>
+          <div class="form-group">
+            <label>TLS key path</label>
+            <input name="tls_key_path" placeholder="/path/to/key.pem" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditSourceModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Target server modals -->
+  <div id="create-target-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New target server</h2>
+      <div id="create-target-error" class="error hidden"></div>
+      <form id="create-target-form" onsubmit="submitCreateTarget(event)">
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" placeholder="My target" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required placeholder="localhost" />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" placeholder="3000" />
+        </div>
+        <div class="form-group">
+          <label>Base path</label>
+          <input name="base_path" placeholder="/api" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateTargetModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="edit-target-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit target server</h2>
+      <div id="edit-target-error" class="error hidden"></div>
+      <form id="edit-target-form" onsubmit="submitEditTarget(event)">
+        <input type="hidden" name="target_server_uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" />
+        </div>
+        <div class="form-group">
+          <label>Base path</label>
+          <input name="base_path" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditTargetModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Authentication modal (create and edit) -->
+  <div id="auth-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="auth-modal-title">Authentication</h2>
+      <div id="auth-modal-error" class="error hidden"></div>
+      <form id="auth-form" onsubmit="submitAuth(event)">
+        <input type="hidden" name="authentication_uuid" id="auth-form-uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" id="auth-form-name" placeholder="My auth" />
+        </div>
+        <div class="form-group">
+          <label>Token type</label>
+          <select name="token_type" id="auth-form-token-type">
+            <option value="bearer">Bearer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label id="auth-form-token-label">Token</label>
+          <input name="token" type="password" id="auth-form-token" placeholder="Secret token" />
+          <small id="auth-form-token-hint" class="muted hidden">Leave blank to keep current token.</small>
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeAuthModal()">Cancel</button>
+          <button type="submit" id="auth-modal-submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Route modals -->
+  <div id="create-route-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New route</h2>
+      <div id="create-route-error" class="error hidden"></div>
+      <form id="create-route-form" onsubmit="submitCreateRoute(event)">
+        <div class="form-group">
+          <label>Source server</label>
+          <select name="source_server_uuid" required id="create-route-source"></select>
+        </div>
+        <div class="form-group">
+          <label>Target server</label>
+          <select name="target_server_uuid" required id="create-route-target"></select>
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <input name="method" required placeholder="GET" />
+        </div>
+        <div class="form-group">
+          <label>Source path</label>
+          <input name="source_path" required placeholder="/api/foo" />
+        </div>
+        <div class="form-group">
+          <label>Target path</label>
+          <input name="target_path" required placeholder="/backend/foo" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateRouteModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="edit-route-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit route</h2>
+      <div id="edit-route-error" class="error hidden"></div>
+      <form id="edit-route-form" onsubmit="submitEditRoute(event)">
+        <input type="hidden" name="route_uuid" />
+        <div class="form-group">
+          <label>Source server</label>
+          <select name="source_server_uuid" required id="edit-route-source"></select>
+        </div>
+        <div class="form-group">
+          <label>Target server</label>
+          <select name="target_server_uuid" required id="edit-route-target"></select>
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <input name="method" required />
+        </div>
+        <div class="form-group">
+          <label>Source path</label>
+          <input name="source_path" required />
+        </div>
+        <div class="form-group">
+          <label>Target path</label>
+          <input name="target_path" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditRouteModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Route authentications modal (source + target auth for one route) -->
+  <div id="route-auth-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="route-auth-modal-title">Route authentications</h2>
+      <div id="route-auth-error" class="error hidden"></div>
+      <form id="route-auth-form" onsubmit="submitRouteAuth(event)">
+        <input type="hidden" name="route_uuid" id="route-auth-route-uuid" />
+        <div class="form-group">
+          <label>Source auth (required to access this route)</label>
+          <select name="source_auth_uuids" id="route-auth-source-auth" multiple size="4"></select>
+          <small class="muted">Hold Ctrl/Cmd to select multiple; leave empty for no source auth.</small>
+        </div>
+        <div class="form-group">
+          <label>Target auth (sent to backend)</label>
+          <select name="target_auth_uuid" id="route-auth-target-auth">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeRouteAuthModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

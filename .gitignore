@@ -27,6 +27,19 @@ go.work.sum
 # env file
 .env
 
+# database
+*.db
+
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+.cursor/
+
+# Docs Scratchpad
+_docs_scratchpad/
+# TLS test files
+_tls_test/
+
+# Binary
+featherproxy
+app/app
