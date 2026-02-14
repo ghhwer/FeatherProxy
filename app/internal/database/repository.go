@@ -42,6 +42,7 @@ type Repository interface {
 	ListRoutes() ([]schema.Route, error)
 	GetRouteFromSourcePath(sourcePath string) (schema.Route, error)
 	GetRouteFromTargetPath(targetPath string) (schema.Route, error)
+	FindRouteBySourceMethodPath(sourceServerUUID uuid.UUID, method, sourcePath string) (schema.Route, error)
 }
 
 type repository struct {
@@ -187,6 +188,14 @@ func (r *repository) GetRouteFromSourcePath(sourcePath string) (schema.Route, er
 func (r *repository) GetRouteFromTargetPath(targetPath string) (schema.Route, error) {
 	var dbRoute objects.Route
 	if err := r.db.Where("target_path = ?", targetPath).First(&dbRoute).Error; err != nil {
+		return schema.Route{}, err
+	}
+	return objects.RouteToSchema(&dbRoute), nil
+}
+
+func (r *repository) FindRouteBySourceMethodPath(sourceServerUUID uuid.UUID, method, sourcePath string) (schema.Route, error) {
+	var dbRoute objects.Route
+	if err := r.db.Where("source_server_uuid = ? AND method = ? AND source_path = ?", sourceServerUUID, method, sourcePath).First(&dbRoute).Error; err != nil {
 		return schema.Route{}, err
 	}
 	return objects.RouteToSchema(&dbRoute), nil

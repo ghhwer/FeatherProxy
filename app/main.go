@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"FeatherProxy/app/internal/database"
+	"FeatherProxy/app/internal/proxy"
 	"FeatherProxy/app/internal/ui_server"
 
 	"github.com/joho/godotenv"
@@ -33,12 +34,20 @@ func main() {
 
 	repo := database.NewRepository(db.DB())
 	srv := server.NewServer(":4545", repo)
+	proxyService := proxy.NewService(repo)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Println("server: listening on http://localhost:4545")
-	if err := srv.Run(ctx); err != nil {
-		log.Fatalf("server: %v", err)
+	go func() {
+		log.Println("server: listening on http://localhost:4545")
+		if err := srv.Run(ctx); err != nil {
+			log.Printf("server: %v", err)
+		}
+		log.Println("server: stopped")
+	}()
+
+	if err := proxyService.Run(ctx); err != nil {
+		log.Fatalf("proxy: %v", err)
 	}
-	log.Println("server: stopped")
+	log.Println("proxy: stopped")
 }
