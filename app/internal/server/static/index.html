@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FeatherProxy – Routes</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Routes</h1>
+    <div class="toolbar">
+      <button type="button" onclick="openCreateModal()">Add route</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Protocol</th>
+          <th>Method</th>
+          <th>Source path</th>
+          <th>Target path</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="routes-tbody">
+        <tr>
+          <td colspan="5" class="empty">Loading…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="create-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New route</h2>
+      <div id="create-error" class="error hidden"></div>
+      <form id="create-form" onsubmit="submitCreate(event)">
+        <div class="form-group">
+          <label>Protocol</label>
+          <input name="protocol" required placeholder="http" />
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <input name="method" required placeholder="GET" />
+        </div>
+        <div class="form-group">
+          <label>Source path</label>
+          <input name="source_path" required placeholder="/api/foo" />
+        </div>
+        <div class="form-group">
+          <label>Target path</label>
+          <input name="target_path" required placeholder="/backend/foo" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="edit-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit route</h2>
+      <div id="edit-error" class="error hidden"></div>
+      <form id="edit-form" onsubmit="submitEdit(event)">
+        <input type="hidden" name="route_uuid" />
+        <div class="form-group">
+          <label>Protocol</label>
+          <input name="protocol" required />
+        </div>
+        <div class="form-group">
+          <label>Method</label>
+          <input name="method" required />
+        </div>
+        <div class="form-group">
+          <label>Source path</label>
+          <input name="source_path" required />
+        </div>
+        <div class="form-group">
+          <label>Target path</label>
+          <input name="target_path" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
