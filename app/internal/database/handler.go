@@ -59,6 +59,7 @@ func (h *Handler) DB() *gorm.DB {
 func (h *Handler) AutoMigrate() error {
 	return h.DB().AutoMigrate(
 		&objects.SourceServer{},
+		&objects.ServerOptions{},
 		&objects.TargetServer{},
 		&objects.Route{},
 		&objects.Authentication{},

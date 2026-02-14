@@ -25,6 +25,7 @@ const (
 	keyListAuthentications       = "list:authentications"
 	keyPrefixRouteSourceAuths    = "route_source_auths:"
 	keyPrefixTargetAuthForRoute  = "target_auth_for_route:"
+	keyPrefixServerOptions       = "server_options:"
 )
 
 func keySourceServer(id uuid.UUID) string              { return keyPrefixSourceServer + id.String() }
@@ -38,6 +39,7 @@ func keyRouteMethodPath(sourceID uuid.UUID, method, path string) string {
 func keyAuth(id uuid.UUID) string                   { return keyPrefixAuth + id.String() }
 func keyRouteSourceAuths(routeID uuid.UUID) string   { return keyPrefixRouteSourceAuths + routeID.String() }
 func keyTargetAuthForRoute(routeID uuid.UUID) string { return keyPrefixTargetAuthForRoute + routeID.String() }
+func keyServerOptions(sourceID uuid.UUID) string    { return keyPrefixServerOptions + sourceID.String() }
 
 func (r *repository) cacheCtx() context.Context { return context.Background() }
 

@@ -28,7 +28,8 @@ func (r *repository) UpdateSourceServer(s schema.SourceServer) error {
 }
 
 func (r *repository) DeleteSourceServer(id uuid.UUID) error {
-	return r.invalidate(r.db.Delete(&objects.SourceServer{SourceServerUUID: id}).Error, []string{keySourceServer(id), keyListSourceServers}, nil)
+	_ = r.db.Delete(&objects.ServerOptions{SourceServerUUID: id})
+	return r.invalidate(r.db.Delete(&objects.SourceServer{SourceServerUUID: id}).Error, []string{keySourceServer(id), keyListSourceServers, keyServerOptions(id)}, nil)
 }
 
 func (r *repository) ListSourceServers() ([]schema.SourceServer, error) {

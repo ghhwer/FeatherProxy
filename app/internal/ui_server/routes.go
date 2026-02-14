@@ -83,20 +83,41 @@ func (s *Server) handleSourceServersCollection(w http.ResponseWriter, r *http.Re
 	}
 }
 
-// handleSourceServerByID: GET/PUT/DELETE /api/source-servers/{uuid}.
+// handleSourceServerByID: GET/PUT/DELETE /api/source-servers/{uuid} or GET/PUT /api/source-servers/{uuid}/options.
 func (s *Server) handleSourceServerByID(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/source-servers/")
-	if path == "" || strings.Contains(path, "/") {
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+	parts := strings.SplitN(path, "/", 2)
+	uuidPart := parts[0]
+	if uuidPart == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "options" {
+		switch r.Method {
+		case http.MethodGet:
+			handlers.GetServerOptions(s.repo, w, r, uuidPart)
+		case http.MethodPut:
+			handlers.SetServerOptions(s.repo, w, r, uuidPart)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+	if len(parts) == 2 {
 		http.NotFound(w, r)
 		return
 	}
 	switch r.Method {
 	case http.MethodGet:
-		handlers.GetSourceServer(s.repo, w, r, path)
+		handlers.GetSourceServer(s.repo, w, r, uuidPart)
 	case http.MethodPut:
-		handlers.UpdateSourceServer(s.repo, w, r, path)
+		handlers.UpdateSourceServer(s.repo, w, r, uuidPart)
 	case http.MethodDelete:
-		handlers.DeleteSourceServer(s.repo, w, r, path)
+		handlers.DeleteSourceServer(s.repo, w, r, uuidPart)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}

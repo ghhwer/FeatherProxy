@@ -72,9 +72,22 @@ async function loadSourceServers() {
   }).join('');
 }
 
+function toggleCreateSourceTls() {
+  const form = document.getElementById('create-source-form');
+  const el = document.getElementById('create-source-tls');
+  el.classList.toggle('hidden', form && form.querySelector('[name="protocol"]').value !== 'https');
+}
+
+function toggleEditSourceTls() {
+  const form = document.getElementById('edit-source-form');
+  const el = document.getElementById('edit-source-tls');
+  el.classList.toggle('hidden', form && form.querySelector('[name="protocol"]').value !== 'https');
+}
+
 function openCreateSourceModal() {
   document.getElementById('create-source-form').reset();
   showError(document.getElementById('create-source-error'), '');
+  toggleCreateSourceTls();
   document.getElementById('create-source-modal').classList.remove('hidden');
 }
 
@@ -101,6 +114,18 @@ async function submitCreateSource(e) {
     showError(errEl, result.error || 'Request failed');
     return;
   }
+  const protocol = fd.get('protocol');
+  const uuid = result.data && result.data.source_server_uuid;
+  if (protocol === 'https' && uuid) {
+    const optsResult = await api.setSourceServerOptions(uuid, {
+      tls_cert_path: fd.get('tls_cert_path') || '',
+      tls_key_path: fd.get('tls_key_path') || ''
+    });
+    if (!optsResult.ok) {
+      showError(errEl, optsResult.error || 'Failed to save TLS options');
+      return;
+    }
+  }
   closeCreateSourceModal();
   loadSourceServers();
 }
@@ -119,6 +144,15 @@ async function editSource(uuid) {
   form.querySelector('[name="protocol"]').value = s.protocol || 'http';
   form.querySelector('[name="host"]').value = s.host || '';
   form.querySelector('[name="port"]').value = s.port || '';
+  const optsResult = await api.getSourceServerOptions(uuid);
+  if (optsResult.ok && optsResult.data) {
+    form.querySelector('[name="tls_cert_path"]').value = optsResult.data.tls_cert_path || '';
+    form.querySelector('[name="tls_key_path"]').value = optsResult.data.tls_key_path || '';
+  } else {
+    form.querySelector('[name="tls_cert_path"]').value = '';
+    form.querySelector('[name="tls_key_path"]').value = '';
+  }
+  toggleEditSourceTls();
   showError(document.getElementById('edit-source-error'), '');
   document.getElementById('edit-source-modal').classList.remove('hidden');
 }
@@ -142,6 +176,16 @@ async function submitEditSource(e) {
   if (!result.ok) {
     showError(errEl, result.error || 'Request failed');
     return;
+  }
+  if (fd.get('protocol') === 'https') {
+    const optsResult = await api.setSourceServerOptions(uuid, {
+      tls_cert_path: fd.get('tls_cert_path') || '',
+      tls_key_path: fd.get('tls_key_path') || ''
+    });
+    if (!optsResult.ok) {
+      showError(errEl, optsResult.error || 'Failed to save TLS options');
+      return;
+    }
   }
   closeEditSourceModal();
   loadSourceServers();
@@ -666,8 +710,10 @@ function showSection(id) {
 window.refreshAll = refreshAll;
 window.openCreateSourceModal = openCreateSourceModal;
 window.closeCreateSourceModal = closeCreateSourceModal;
+window.toggleCreateSourceTls = toggleCreateSourceTls;
 window.submitCreateSource = submitCreateSource;
 window.closeEditSourceModal = closeEditSourceModal;
+window.toggleEditSourceTls = toggleEditSourceTls;
 window.editSource = editSource;
 window.submitEditSource = submitEditSource;
 window.deleteSource = deleteSource;

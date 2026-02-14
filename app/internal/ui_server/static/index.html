@@ -190,11 +190,20 @@
         </div>
         <div class="form-group">
           <label>Protocol</label>
-          <select name="protocol" required>
+          <select name="protocol" required onchange="toggleCreateSourceTls()">
             <option value="http">http</option>
             <option value="https">https</option>
-            <option value="tcp">tcp</option>
           </select>
+        </div>
+        <div id="create-source-tls" class="tls-options hidden">
+          <div class="form-group">
+            <label>TLS certificate path</label>
+            <input name="tls_cert_path" placeholder="/path/to/cert.pem" />
+          </div>
+          <div class="form-group">
+            <label>TLS key path</label>
+            <input name="tls_key_path" placeholder="/path/to/key.pem" />
+          </div>
         </div>
         <div class="form-group">
           <label>Host</label>
@@ -223,11 +232,20 @@
         </div>
         <div class="form-group">
           <label>Protocol</label>
-          <select name="protocol" required>
+          <select name="protocol" required onchange="toggleEditSourceTls()">
             <option value="http">http</option>
             <option value="https">https</option>
-            <option value="tcp">tcp</option>
           </select>
+        </div>
+        <div id="edit-source-tls" class="tls-options hidden">
+          <div class="form-group">
+            <label>TLS certificate path</label>
+            <input name="tls_cert_path" placeholder="/path/to/cert.pem" />
+          </div>
+          <div class="form-group">
+            <label>TLS key path</label>
+            <input name="tls_key_path" placeholder="/path/to/key.pem" />
+          </div>
         </div>
         <div class="form-group">
           <label>Host</label>
@@ -260,7 +278,6 @@
           <select name="protocol" required>
             <option value="http">http</option>
             <option value="https">https</option>
-            <option value="tcp">tcp</option>
           </select>
         </div>
         <div class="form-group">
@@ -297,7 +314,6 @@
           <select name="protocol" required>
             <option value="http">http</option>
             <option value="https">https</option>
-            <option value="tcp">tcp</option>
           </select>
         </div>
         <div class="form-group">

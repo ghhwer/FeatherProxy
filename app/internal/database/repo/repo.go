@@ -19,6 +19,9 @@ type Repository interface {
 	UpdateSourceServer(s schema.SourceServer) error
 	DeleteSourceServer(uuid uuid.UUID) error
 	ListSourceServers() ([]schema.SourceServer, error)
+	// Server options (1:1 with source server; e.g. TLS for HTTPS)
+	GetServerOptions(sourceServerUUID uuid.UUID) (schema.ServerOptions, error)
+	SetServerOptions(opts schema.ServerOptions) error
 	// Target servers
 	CreateTargetServer(t schema.TargetServer) error
 	GetTargetServer(uuid uuid.UUID) (schema.TargetServer, error)

@@ -105,3 +105,46 @@ func DeleteSourceServer(repo database.Repository, w http.ResponseWriter, _ *http
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func GetServerOptions(repo database.Repository, w http.ResponseWriter, _ *http.Request, sourceIDStr string) {
+	id, ok := parseUUIDParam(w, sourceIDStr, "invalid source server UUID")
+	if !ok {
+		return
+	}
+	if _, err := repo.GetSourceServer(id); !handleRepoGetError(w, err) {
+		return
+	}
+	opts, err := repo.GetServerOptions(id)
+	if !handleRepoGetError(w, err) {
+		return
+	}
+	respondJSON(w, http.StatusOK, opts)
+}
+
+func SetServerOptions(repo database.Repository, w http.ResponseWriter, r *http.Request, sourceIDStr string) {
+	id, ok := parseUUIDParam(w, sourceIDStr, "invalid source server UUID")
+	if !ok {
+		return
+	}
+	if _, err := repo.GetSourceServer(id); !handleRepoGetError(w, err) {
+		return
+	}
+	var body struct {
+		TLSCertPath string `json:"tls_cert_path"`
+		TLSKeyPath  string `json:"tls_key_path"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	opts := schema.ServerOptions{
+		SourceServerUUID: id,
+		TLSCertPath:      body.TLSCertPath,
+		TLSKeyPath:       body.TLSKeyPath,
+	}
+	if err := repo.SetServerOptions(opts); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	current, _ := repo.GetServerOptions(id)
+	respondJSON(w, http.StatusOK, current)
+}

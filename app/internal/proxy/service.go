@@ -54,12 +54,24 @@ func (s *Service) Run(ctx context.Context) error {
 			Addr:    addr,
 			Handler: s.handler(source.SourceServerUUID),
 		}
+		opts, _ := s.repo.GetServerOptions(source.SourceServerUUID)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log.Printf("proxy: listening on %s (%s)", addr, source.Name)
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Printf("proxy: server %s: %v", addr, err)
+			if source.Protocol == "https" {
+				if opts.TLSCertPath == "" || opts.TLSKeyPath == "" {
+					log.Printf("proxy: HTTPS source %s (%s) missing TLS cert/key paths, skipping", source.Name, addr)
+					return
+				}
+				log.Printf("proxy: listening on https://%s (%s)", addr, source.Name)
+				if err := server.ListenAndServeTLS(opts.TLSCertPath, opts.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+					log.Printf("proxy: server %s: %v", addr, err)
+				}
+			} else {
+				log.Printf("proxy: listening on http://%s (%s)", addr, source.Name)
+				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					log.Printf("proxy: server %s: %v", addr, err)
+				}
 			}
 		}()
 		go func() {

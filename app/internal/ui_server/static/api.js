@@ -52,6 +52,20 @@ export async function deleteSourceServer(uuid) {
   return { ok: res.ok };
 }
 
+export async function getSourceServerOptions(uuid) {
+  const res = await fetch(API_SOURCE + '/' + uuid + '/options');
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function setSourceServerOptions(uuid, body) {
+  return request(API_SOURCE + '/' + uuid + '/options', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+
 // --- Target servers ---
 export async function getTargetServers() {
   const res = await fetch(API_TARGET);
