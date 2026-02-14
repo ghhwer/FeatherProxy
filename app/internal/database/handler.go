@@ -58,6 +58,8 @@ func (h *Handler) DB() *gorm.DB {
 // AutoMigrate creates/updates tables for all registered database objects.
 func (h *Handler) AutoMigrate() error {
 	return h.DB().AutoMigrate(
+		&objects.SourceServer{},
+		&objects.TargetServer{},
 		&objects.Route{},
 	)
 }

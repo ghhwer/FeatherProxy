@@ -133,7 +133,8 @@ tr:last-child td {
   margin-bottom: 0.25rem;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
@@ -141,6 +142,41 @@ tr:last-child td {
   background: var(--bg);
   color: var(--text);
   font-size: 0.875rem;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-tabs .tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.nav-tabs .tab:hover {
+  color: var(--text);
+}
+
+.nav-tabs .tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
 }
 
 .modal-actions {

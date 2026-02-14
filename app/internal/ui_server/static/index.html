@@ -3,41 +3,236 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FeatherProxy – Routes</title>
+  <title>FeatherProxy</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Routes</h1>
-    <div class="toolbar">
-      <button type="button" onclick="openCreateModal()">Add route</button>
+    <h1>FeatherProxy</h1>
+    <nav class="nav-tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="source-servers" onclick="switchTab('source-servers')">Source servers</button>
+      <button type="button" class="tab" data-tab="target-servers" onclick="switchTab('target-servers')">Target servers</button>
+      <button type="button" class="tab" data-tab="routes" onclick="switchTab('routes')">Routes</button>
+    </nav>
+
+    <div id="panel-source-servers" class="tab-panel active">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateSourceModal()">Add source server</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Protocol</th>
+            <th>Host</th>
+            <th>Port</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="source-servers-tbody">
+          <tr><td colspan="5" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Protocol</th>
-          <th>Method</th>
-          <th>Source path</th>
-          <th>Target path</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="routes-tbody">
-        <tr>
-          <td colspan="5" class="empty">Loading…</td>
-        </tr>
-      </tbody>
-    </table>
+
+    <div id="panel-target-servers" class="tab-panel">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateTargetModal()">Add target server</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Protocol</th>
+            <th>Host</th>
+            <th>Port</th>
+            <th>Base path</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="target-servers-tbody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="panel-routes" class="tab-panel">
+      <div class="toolbar">
+        <button type="button" onclick="openCreateRouteModal()">Add route</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Source</th>
+            <th>Source path</th>
+            <th>Target</th>
+            <th>Target path</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="routes-tbody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <div id="create-modal" class="modal hidden">
+  <!-- Source server modals -->
+  <div id="create-source-modal" class="modal hidden">
     <div class="modal-content">
-      <h2>New route</h2>
-      <div id="create-error" class="error hidden"></div>
-      <form id="create-form" onsubmit="submitCreate(event)">
+      <h2>New source server</h2>
+      <div id="create-source-error" class="error hidden"></div>
+      <form id="create-source-form" onsubmit="submitCreateSource(event)">
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" placeholder="My source" />
+        </div>
         <div class="form-group">
           <label>Protocol</label>
-          <input name="protocol" required placeholder="http" />
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+            <option value="tcp">tcp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required placeholder="0.0.0.0" />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" placeholder="8080" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateSourceModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="edit-source-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit source server</h2>
+      <div id="edit-source-error" class="error hidden"></div>
+      <form id="edit-source-form" onsubmit="submitEditSource(event)">
+        <input type="hidden" name="source_server_uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+            <option value="tcp">tcp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditSourceModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Target server modals -->
+  <div id="create-target-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New target server</h2>
+      <div id="create-target-error" class="error hidden"></div>
+      <form id="create-target-form" onsubmit="submitCreateTarget(event)">
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" placeholder="My target" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+            <option value="tcp">tcp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required placeholder="localhost" />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" placeholder="3000" />
+        </div>
+        <div class="form-group">
+          <label>Base path</label>
+          <input name="base_path" placeholder="/api" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeCreateTargetModal()">Cancel</button>
+          <button type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="edit-target-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit target server</h2>
+      <div id="edit-target-error" class="error hidden"></div>
+      <form id="edit-target-form" onsubmit="submitEditTarget(event)">
+        <input type="hidden" name="target_server_uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" />
+        </div>
+        <div class="form-group">
+          <label>Protocol</label>
+          <select name="protocol" required>
+            <option value="http">http</option>
+            <option value="https">https</option>
+            <option value="tcp">tcp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Host</label>
+          <input name="host" required />
+        </div>
+        <div class="form-group">
+          <label>Port</label>
+          <input name="port" type="number" required min="1" max="65535" />
+        </div>
+        <div class="form-group">
+          <label>Base path</label>
+          <input name="base_path" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeEditTargetModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Route modals -->
+  <div id="create-route-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>New route</h2>
+      <div id="create-route-error" class="error hidden"></div>
+      <form id="create-route-form" onsubmit="submitCreateRoute(event)">
+        <div class="form-group">
+          <label>Source server</label>
+          <select name="source_server_uuid" required id="create-route-source"></select>
+        </div>
+        <div class="form-group">
+          <label>Target server</label>
+          <select name="target_server_uuid" required id="create-route-target"></select>
         </div>
         <div class="form-group">
           <label>Method</label>
@@ -52,22 +247,25 @@
           <input name="target_path" required placeholder="/backend/foo" />
         </div>
         <div class="modal-actions">
-          <button type="button" onclick="closeCreateModal()">Cancel</button>
+          <button type="button" onclick="closeCreateRouteModal()">Cancel</button>
           <button type="submit">Create</button>
         </div>
       </form>
     </div>
   </div>
-
-  <div id="edit-modal" class="modal hidden">
+  <div id="edit-route-modal" class="modal hidden">
     <div class="modal-content">
       <h2>Edit route</h2>
-      <div id="edit-error" class="error hidden"></div>
-      <form id="edit-form" onsubmit="submitEdit(event)">
+      <div id="edit-route-error" class="error hidden"></div>
+      <form id="edit-route-form" onsubmit="submitEditRoute(event)">
         <input type="hidden" name="route_uuid" />
         <div class="form-group">
-          <label>Protocol</label>
-          <input name="protocol" required />
+          <label>Source server</label>
+          <select name="source_server_uuid" required id="edit-route-source"></select>
+        </div>
+        <div class="form-group">
+          <label>Target server</label>
+          <select name="target_server_uuid" required id="edit-route-target"></select>
         </div>
         <div class="form-group">
           <label>Method</label>
@@ -82,7 +280,7 @@
           <input name="target_path" required />
         </div>
         <div class="modal-actions">
-          <button type="button" onclick="closeEditModal()">Cancel</button>
+          <button type="button" onclick="closeEditRouteModal()">Cancel</button>
           <button type="submit">Save</button>
         </div>
       </form>
