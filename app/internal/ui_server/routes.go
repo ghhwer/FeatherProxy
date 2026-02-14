@@ -14,8 +14,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/source-servers/", s.handleSourceServerByID)
 	mux.HandleFunc("/api/target-servers", s.handleTargetServersCollection)
 	mux.HandleFunc("/api/target-servers/", s.handleTargetServerByID)
+	mux.HandleFunc("/api/authentications", s.handleAuthenticationsCollection)
+	mux.HandleFunc("/api/authentications/", s.handleAuthenticationByID)
 	mux.HandleFunc("/api/routes", s.handleRoutesCollection)
-	mux.HandleFunc("/api/routes/", s.handleRouteByID)
+	mux.HandleFunc("/api/routes/", s.handleRouteOrRouteAuth)
 
 	// UI (HTML, CSS, JS served from in-memory embedded files)
 	mux.HandleFunc("/styles.css", s.handleStyles)
@@ -111,21 +113,87 @@ func (s *Server) handleTargetServerByID(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// handleRouteByID: GET/PUT/DELETE /api/routes/{uuid}.
-func (s *Server) handleRouteByID(w http.ResponseWriter, r *http.Request) {
+// handleRouteOrRouteAuth: GET/PUT/DELETE /api/routes/{uuid} or .../source-auth or .../target-auth.
+func (s *Server) handleRouteOrRouteAuth(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/routes/")
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+	parts := strings.SplitN(path, "/", 2)
+	routeIDStr := parts[0]
+	subPath := ""
+	if len(parts) == 2 {
+		subPath = parts[1]
+	}
+	if subPath == "source-auth" {
+		switch r.Method {
+		case http.MethodGet:
+			s.getRouteSourceAuth(w, r, routeIDStr)
+		case http.MethodPut:
+			s.putRouteSourceAuth(w, r, routeIDStr)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+	if subPath == "target-auth" {
+		switch r.Method {
+		case http.MethodGet:
+			s.getRouteTargetAuth(w, r, routeIDStr)
+		case http.MethodPut:
+			s.putRouteTargetAuth(w, r, routeIDStr)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+	if subPath != "" {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		s.getRoute(w, r, routeIDStr)
+	case http.MethodPut:
+		s.updateRoute(w, r, routeIDStr)
+	case http.MethodDelete:
+		s.deleteRoute(w, r, routeIDStr)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAuthenticationsCollection: GET /api/authentications (list), POST /api/authentications (create).
+func (s *Server) handleAuthenticationsCollection(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/authentications" {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		s.listAuthentications(w, r)
+	case http.MethodPost:
+		s.createAuthentication(w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAuthenticationByID: GET/PUT/DELETE /api/authentications/{uuid}.
+func (s *Server) handleAuthenticationByID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/authentications/")
 	if path == "" || strings.Contains(path, "/") {
 		http.NotFound(w, r)
 		return
 	}
-	idStr := path
 	switch r.Method {
 	case http.MethodGet:
-		s.getRoute(w, r, idStr)
+		s.getAuthentication(w, r, path)
 	case http.MethodPut:
-		s.updateRoute(w, r, idStr)
+		s.updateAuthentication(w, r, path)
 	case http.MethodDelete:
-		s.deleteRoute(w, r, idStr)
+		s.deleteAuthentication(w, r, path)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}

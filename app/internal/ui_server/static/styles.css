@@ -98,6 +98,13 @@ tr:last-child td {
   text-align: center;
 }
 
+.muted {
+  color: var(--muted);
+  font-size: 0.875rem;
+  display: block;
+  margin-top: 0.25rem;
+}
+
 .modal {
   position: fixed;
   inset: 0;

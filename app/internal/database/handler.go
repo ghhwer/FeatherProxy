@@ -61,6 +61,9 @@ func (h *Handler) AutoMigrate() error {
 		&objects.SourceServer{},
 		&objects.TargetServer{},
 		&objects.Route{},
+		&objects.Authentication{},
+		&objects.RouteSourceAuth{},
+		&objects.RouteTargetAuth{},
 	)
 }
 

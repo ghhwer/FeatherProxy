@@ -12,6 +12,7 @@
     <nav class="nav-tabs" role="tablist">
       <button type="button" class="tab active" data-tab="source-servers" onclick="switchTab('source-servers')">Source servers</button>
       <button type="button" class="tab" data-tab="target-servers" onclick="switchTab('target-servers')">Target servers</button>
+      <button type="button" class="tab" data-tab="authentications" onclick="switchTab('authentications')">Authentications</button>
       <button type="button" class="tab" data-tab="routes" onclick="switchTab('routes')">Routes</button>
     </nav>
 
@@ -52,6 +53,25 @@
         </thead>
         <tbody id="target-servers-tbody">
           <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="panel-authentications" class="tab-panel">
+      <div class="toolbar">
+        <button type="button" onclick="openAuthModal()">Add authentication</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Token type</th>
+            <th>Token</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="authentications-tbody">
+          <tr><td colspan="4" class="empty">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -220,6 +240,36 @@
     </div>
   </div>
 
+  <!-- Authentication modal (create and edit) -->
+  <div id="auth-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="auth-modal-title">Authentication</h2>
+      <div id="auth-modal-error" class="error hidden"></div>
+      <form id="auth-form" onsubmit="submitAuth(event)">
+        <input type="hidden" name="authentication_uuid" id="auth-form-uuid" />
+        <div class="form-group">
+          <label>Name</label>
+          <input name="name" id="auth-form-name" placeholder="My auth" />
+        </div>
+        <div class="form-group">
+          <label>Token type</label>
+          <select name="token_type" id="auth-form-token-type">
+            <option value="bearer">Bearer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label id="auth-form-token-label">Token</label>
+          <input name="token" type="password" id="auth-form-token" placeholder="Secret token" />
+          <small id="auth-form-token-hint" class="muted hidden">Leave blank to keep current token.</small>
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeAuthModal()">Cancel</button>
+          <button type="submit" id="auth-modal-submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Route modals -->
   <div id="create-route-modal" class="modal hidden">
     <div class="modal-content">
@@ -281,6 +331,32 @@
         </div>
         <div class="modal-actions">
           <button type="button" onclick="closeEditRouteModal()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Route authentications modal (source + target auth for one route) -->
+  <div id="route-auth-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="route-auth-modal-title">Route authentications</h2>
+      <div id="route-auth-error" class="error hidden"></div>
+      <form id="route-auth-form" onsubmit="submitRouteAuth(event)">
+        <input type="hidden" name="route_uuid" id="route-auth-route-uuid" />
+        <div class="form-group">
+          <label>Source auth (required to access this route)</label>
+          <select name="source_auth_uuids" id="route-auth-source-auth" multiple size="4"></select>
+          <small class="muted">Hold Ctrl/Cmd to select multiple; leave empty for no source auth.</small>
+        </div>
+        <div class="form-group">
+          <label>Target auth (sent to backend)</label>
+          <select name="target_auth_uuid" id="route-auth-target-auth">
+            <option value="">— None —</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeRouteAuthModal()">Cancel</button>
           <button type="submit">Save</button>
         </div>
       </form>

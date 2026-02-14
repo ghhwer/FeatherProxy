@@ -1,9 +1,11 @@
 const API_ROUTES = '/api/routes';
 const API_SOURCE = '/api/source-servers';
 const API_TARGET = '/api/target-servers';
+const API_AUTH = '/api/authentications';
 
 let sourceServers = [];
 let targetServers = [];
+let authentications = [];
 let routes = [];
 
 function showError(el, msg) {
@@ -26,9 +28,11 @@ async function switchTab(tabId) {
   });
   if (tabId === 'source-servers') loadSourceServers();
   if (tabId === 'target-servers') loadTargetServers();
+  if (tabId === 'authentications') loadAuthentications();
   if (tabId === 'routes') {
     await loadSourceServers();
     await loadTargetServers();
+    await loadAuthentications();
     await loadRoutes();
   }
 }
@@ -274,6 +278,137 @@ async function deleteTarget(uuid) {
   if (res.ok) loadTargetServers();
 }
 
+// --- Authentications ---
+async function loadAuthentications() {
+  const tbody = document.getElementById('authentications-tbody');
+  if (!tbody) return;
+  const res = await fetch(API_AUTH);
+  if (!res.ok) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Failed to load authentications</td></tr>';
+    return;
+  }
+  authentications = await res.json();
+  if (authentications.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No authentications yet. Add one to attach to routes.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = authentications.map(function (a) {
+    return (
+      '<tr><td>' + escapeHtml(a.name) +
+      '</td><td>' + escapeHtml(a.token_type || 'bearer') +
+      '</td><td>' + escapeHtml(a.token_masked || '***') +
+      '</td><td><button type="button" onclick="editAuth(\'' + a.authentication_uuid + '\')">Edit</button> ' +
+      '<button type="button" class="danger" onclick="deleteAuth(\'' + a.authentication_uuid + '\')">Delete</button></td></tr>'
+    );
+  }).join('');
+}
+
+function openAuthModal(existingAuth) {
+  const form = document.getElementById('auth-form');
+  const uuidInput = document.getElementById('auth-form-uuid');
+  const titleEl = document.getElementById('auth-modal-title');
+  const tokenInput = document.getElementById('auth-form-token');
+  const tokenLabel = document.getElementById('auth-form-token-label');
+  const tokenHint = document.getElementById('auth-form-token-hint');
+  const submitBtn = document.getElementById('auth-modal-submit');
+
+  form.reset();
+  showError(document.getElementById('auth-modal-error'), '');
+
+  if (existingAuth) {
+    uuidInput.value = existingAuth.authentication_uuid || '';
+    document.getElementById('auth-form-name').value = existingAuth.name || '';
+    document.getElementById('auth-form-token-type').value = existingAuth.token_type || 'bearer';
+    tokenInput.value = '';
+    tokenInput.removeAttribute('required');
+    tokenInput.placeholder = 'New token or leave blank to keep current';
+    tokenLabel.textContent = 'Token (optional)';
+    tokenHint.classList.remove('hidden');
+    titleEl.textContent = 'Edit authentication';
+    submitBtn.textContent = 'Save';
+  } else {
+    uuidInput.value = '';
+    tokenInput.setAttribute('required', 'required');
+    tokenInput.placeholder = 'Secret token';
+    tokenLabel.textContent = 'Token';
+    tokenHint.classList.add('hidden');
+    titleEl.textContent = 'New authentication';
+    submitBtn.textContent = 'Create';
+  }
+
+  document.getElementById('auth-modal').classList.remove('hidden');
+}
+
+function closeAuthModal() {
+  document.getElementById('auth-modal').classList.add('hidden');
+}
+
+async function submitAuth(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const uuid = fd.get('authentication_uuid');
+  const errEl = document.getElementById('auth-modal-error');
+  const isEdit = uuid && String(uuid).trim();
+
+  if (!isEdit) {
+    const token = fd.get('token');
+    if (!token || !String(token).trim()) {
+      showError(errEl, 'Token is required');
+      return;
+    }
+  }
+
+  if (isEdit) {
+    const payload = {
+      name: fd.get('name') || '',
+      token_type: fd.get('token_type') || 'bearer'
+    };
+    const token = fd.get('token');
+    if (token && String(token).trim()) payload.token = token;
+    const res = await fetch(API_AUTH + '/' + uuid, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) {
+      showError(errEl, data.error || res.statusText);
+      return;
+    }
+  } else {
+    const res = await fetch(API_AUTH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: fd.get('name') || '',
+        token_type: fd.get('token_type') || 'bearer',
+        token: fd.get('token')
+      })
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) {
+      showError(errEl, data.error || res.statusText);
+      return;
+    }
+  }
+
+  closeAuthModal();
+  loadAuthentications();
+}
+
+async function editAuth(uuid) {
+  const res = await fetch(API_AUTH + '/' + uuid);
+  if (!res.ok) return;
+  const a = await res.json();
+  openAuthModal(a);
+}
+
+async function deleteAuth(uuid) {
+  if (!confirm('Delete this authentication?')) return;
+  const res = await fetch(API_AUTH + '/' + uuid, { method: 'DELETE' });
+  if (res.ok) loadAuthentications();
+}
+
 // --- Routes ---
 function sourceById(uuid) {
   return sourceServers.find(function (s) { return s.source_server_uuid === uuid; });
@@ -310,6 +445,23 @@ function fillRouteTargetSelect(selectId, selectedUuid, filterByProtocol) {
   if (selectedUuid) sel.value = selectedUuid;
 }
 
+function fillRouteAuthSelects(sourceAuthUuids, targetAuthUuid) {
+  const multiSel = document.getElementById('route-auth-source-auth');
+  const singleSel = document.getElementById('route-auth-target-auth');
+  if (!multiSel || !singleSel) return;
+  multiSel.innerHTML = authentications.map(function (a) {
+    const id = a.authentication_uuid;
+    const selected = sourceAuthUuids && sourceAuthUuids.indexOf(id) !== -1;
+    return '<option value="' + escapeHtml(id) + '"' + (selected ? ' selected' : '') + '>' + escapeHtml(a.name || id) + '</option>';
+  }).join('');
+  singleSel.innerHTML = '<option value="">— None —</option>' +
+    authentications.map(function (a) {
+      const id = a.authentication_uuid;
+      const selected = targetAuthUuid === id;
+      return '<option value="' + escapeHtml(id) + '"' + (selected ? ' selected' : '') + '>' + escapeHtml(a.name || id) + '</option>';
+    }).join('');
+}
+
 async function loadRoutes() {
   const tbody = document.getElementById('routes-tbody');
   const res = await fetch(API_ROUTES);
@@ -333,7 +485,8 @@ async function loadRoutes() {
       '</td><td>' + escapeHtml(r.source_path) +
       '</td><td>' + tgtLabel +
       '</td><td>' + escapeHtml(r.target_path) +
-      '</td><td><button type="button" onclick="editRoute(\'' + r.route_uuid + '\')">Edit</button> ' +
+      '</td><td><button type="button" onclick="openRouteAuthModal(\'' + r.route_uuid + '\')">Auth</button> ' +
+      '<button type="button" onclick="editRoute(\'' + r.route_uuid + '\')">Edit</button> ' +
       '<button type="button" class="danger" onclick="deleteRoute(\'' + r.route_uuid + '\')">Delete</button></td></tr>'
     );
   }).join('');
@@ -380,9 +533,9 @@ function closeEditRouteModal() {
 }
 
 async function editRoute(uuid) {
-  const res = await fetch(API_ROUTES + '/' + uuid);
-  if (!res.ok) return;
-  const r = await res.json();
+  const routeRes = await fetch(API_ROUTES + '/' + uuid);
+  if (!routeRes.ok) return;
+  const r = await routeRes.json();
   const form = document.getElementById('edit-route-form');
   form.querySelector('[name="route_uuid"]').value = r.route_uuid;
   form.querySelector('[name="method"]').value = r.method || '';
@@ -424,6 +577,64 @@ async function deleteRoute(uuid) {
   if (!confirm('Delete this route?')) return;
   const res = await fetch(API_ROUTES + '/' + uuid, { method: 'DELETE' });
   if (res.ok) loadRoutes();
+}
+
+async function openRouteAuthModal(routeUuid) {
+  const [routeRes, sourceAuthRes, targetAuthRes] = await Promise.all([
+    fetch(API_ROUTES + '/' + routeUuid),
+    fetch(API_ROUTES + '/' + routeUuid + '/source-auth'),
+    fetch(API_ROUTES + '/' + routeUuid + '/target-auth')
+  ]);
+  if (!routeRes.ok) return;
+  const r = await routeRes.json();
+  var sourceAuthList = [];
+  var targetAuthUuid = '';
+  if (sourceAuthRes.ok) {
+    var sourceAuthData = await sourceAuthRes.json();
+    sourceAuthList = (sourceAuthData || []).map(function (x) { return x.authentication_uuid; });
+  }
+  if (targetAuthRes.ok) {
+    var targetAuthData = await targetAuthRes.json();
+    if (targetAuthData && targetAuthData.authentication_uuid) targetAuthUuid = targetAuthData.authentication_uuid;
+  }
+  document.getElementById('route-auth-route-uuid').value = routeUuid;
+  document.getElementById('route-auth-modal-title').textContent = 'Route auth: ' + (r.method || '') + ' ' + (r.source_path || '');
+  fillRouteAuthSelects(sourceAuthList, targetAuthUuid);
+  showError(document.getElementById('route-auth-error'), '');
+  document.getElementById('route-auth-modal').classList.remove('hidden');
+}
+
+function closeRouteAuthModal() {
+  document.getElementById('route-auth-modal').classList.add('hidden');
+}
+
+async function submitRouteAuth(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const uuid = fd.get('route_uuid');
+  const errEl = document.getElementById('route-auth-error');
+  var sourceAuthUuids = [];
+  var sel = document.getElementById('route-auth-source-auth');
+  if (sel) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].selected) sourceAuthUuids.push(sel.options[i].value);
+    }
+  }
+  var targetAuthUuid = '';
+  var targetSel = document.getElementById('route-auth-target-auth');
+  if (targetSel && targetSel.value) targetAuthUuid = targetSel.value;
+  const putSource = fetch(API_ROUTES + '/' + uuid + '/source-auth', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ authentication_uuids: sourceAuthUuids })
+  });
+  const putTarget = fetch(API_ROUTES + '/' + uuid + '/target-auth', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ authentication_uuid: targetAuthUuid })
+  });
+  await Promise.all([putSource, putTarget]);
+  closeRouteAuthModal();
 }
 
 // Filter target server dropdown by source server protocol (same-protocol rule)

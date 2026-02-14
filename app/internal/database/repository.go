@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"log"
 
 	"FeatherProxy/app/internal/database/objects"
 	"FeatherProxy/app/internal/database/schema"
@@ -43,6 +44,19 @@ type Repository interface {
 	GetRouteFromSourcePath(sourcePath string) (schema.Route, error)
 	GetRouteFromTargetPath(targetPath string) (schema.Route, error)
 	FindRouteBySourceMethodPath(sourceServerUUID uuid.UUID, method, sourcePath string) (schema.Route, error)
+	// Authentications
+	CreateAuthentication(a schema.Authentication) error
+	GetAuthentication(id uuid.UUID) (schema.Authentication, error)
+	GetAuthenticationWithPlainToken(id uuid.UUID) (schema.Authentication, error) // For proxy only; returns decrypted Token
+	UpdateAuthentication(a schema.Authentication) error
+	DeleteAuthentication(id uuid.UUID) error
+	ListAuthentications() ([]schema.Authentication, error)
+	// Route auth mappings
+	ListSourceAuthsForRoute(routeUUID uuid.UUID) ([]schema.RouteSourceAuth, error)
+	SetSourceAuthsForRoute(routeUUID uuid.UUID, authUUIDs []uuid.UUID) error
+	GetTargetAuthForRoute(routeUUID uuid.UUID) (uuid.UUID, bool, error)
+	SetTargetAuthForRoute(routeUUID uuid.UUID, authUUID *uuid.UUID) error
+	GetTargetAuthenticationWithPlainToken(routeUUID uuid.UUID) (schema.Authentication, bool, error) // For proxy
 }
 
 type repository struct {
@@ -199,4 +213,195 @@ func (r *repository) FindRouteBySourceMethodPath(sourceServerUUID uuid.UUID, met
 		return schema.Route{}, err
 	}
 	return objects.RouteToSchema(&dbRoute), nil
+}
+
+const tokenMaskedPlaceholder = "***"
+
+func (r *repository) CreateAuthentication(a schema.Authentication) error {
+	log.Printf("auth/repo: CreateAuthentication id=%s name=%q token_type=%s", a.AuthenticationUUID, a.Name, a.TokenType)
+	if a.Token == "" {
+		return errors.New("token is required for create")
+	}
+	encrypted, salt, err := EncryptToken(a.Token)
+	if err != nil {
+		return err
+	}
+	obj := objects.SchemaToAuthentication(a, encrypted, salt)
+	err = r.db.Create(&obj).Error
+	if err != nil {
+		log.Printf("auth/repo: CreateAuthentication db error: %v", err)
+		return err
+	}
+	log.Printf("auth/repo: CreateAuthentication ok id=%s", a.AuthenticationUUID)
+	return nil
+}
+
+func (r *repository) GetAuthentication(id uuid.UUID) (schema.Authentication, error) {
+	log.Printf("auth/repo: GetAuthentication id=%s", id)
+	var obj objects.Authentication
+	if err := r.db.Where("authentication_uuid = ?", id).First(&obj).Error; err != nil {
+		log.Printf("auth/repo: GetAuthentication not found or error: %v", err)
+		return schema.Authentication{}, err
+	}
+	out := objects.AuthenticationToSchema(&obj)
+	out.TokenMasked = tokenMaskedPlaceholder
+	return out, nil
+}
+
+func (r *repository) GetAuthenticationWithPlainToken(id uuid.UUID) (schema.Authentication, error) {
+	log.Printf("auth/repo: GetAuthenticationWithPlainToken id=%s (for proxy)", id)
+	var obj objects.Authentication
+	if err := r.db.Where("authentication_uuid = ?", id).First(&obj).Error; err != nil {
+		log.Printf("auth/repo: GetAuthenticationWithPlainToken not found: %v", err)
+		return schema.Authentication{}, err
+	}
+	plain, err := DecryptToken(obj.TokenEncrypted, obj.TokenSalt)
+	if err != nil {
+		log.Printf("auth/repo: GetAuthenticationWithPlainToken decrypt error: %v", err)
+		return schema.Authentication{}, err
+	}
+	out := objects.AuthenticationToSchema(&obj)
+	out.Token = plain
+	return out, nil
+}
+
+func (r *repository) UpdateAuthentication(a schema.Authentication) error {
+	log.Printf("auth/repo: UpdateAuthentication id=%s name=%q token_provided=%v", a.AuthenticationUUID, a.Name, a.Token != "")
+	var obj objects.Authentication
+	if err := r.db.Where("authentication_uuid = ?", a.AuthenticationUUID).First(&obj).Error; err != nil {
+		log.Printf("auth/repo: UpdateAuthentication not found: %v", err)
+		return err
+	}
+	obj.Name = a.Name
+	obj.TokenType = a.TokenType
+	if a.Token != "" {
+		encrypted, salt, err := EncryptToken(a.Token)
+		if err != nil {
+			return err
+		}
+		obj.TokenEncrypted = encrypted
+		obj.TokenSalt = salt
+	}
+	err := r.db.Save(&obj).Error
+	if err != nil {
+		log.Printf("auth/repo: UpdateAuthentication save error: %v", err)
+		return err
+	}
+	log.Printf("auth/repo: UpdateAuthentication ok id=%s", a.AuthenticationUUID)
+	return nil
+}
+
+func (r *repository) DeleteAuthentication(id uuid.UUID) error {
+	log.Printf("auth/repo: DeleteAuthentication id=%s", id)
+	err := r.db.Delete(&objects.Authentication{AuthenticationUUID: id}).Error
+	if err != nil {
+		log.Printf("auth/repo: DeleteAuthentication error: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (r *repository) ListAuthentications() ([]schema.Authentication, error) {
+	log.Printf("auth/repo: ListAuthentications")
+	var list []objects.Authentication
+	if err := r.db.Find(&list).Error; err != nil {
+		log.Printf("auth/repo: ListAuthentications error: %v", err)
+		return nil, err
+	}
+	out := make([]schema.Authentication, len(list))
+	for i := range list {
+		out[i] = objects.AuthenticationToSchema(&list[i])
+		out[i].TokenMasked = tokenMaskedPlaceholder
+	}
+	log.Printf("auth/repo: ListAuthentications ok count=%d", len(out))
+	return out, nil
+}
+
+func (r *repository) ListSourceAuthsForRoute(routeUUID uuid.UUID) ([]schema.RouteSourceAuth, error) {
+	log.Printf("route_auth/repo: ListSourceAuthsForRoute route=%s", routeUUID)
+	var list []objects.RouteSourceAuth
+	if err := r.db.Where("route_uuid = ?", routeUUID).Order("position").Find(&list).Error; err != nil {
+		log.Printf("route_auth/repo: ListSourceAuthsForRoute error: %v", err)
+		return nil, err
+	}
+	out := make([]schema.RouteSourceAuth, len(list))
+	for i := range list {
+		out[i] = objects.RouteSourceAuthToSchema(&list[i])
+	}
+	log.Printf("route_auth/repo: ListSourceAuthsForRoute ok route=%s count=%d", routeUUID, len(out))
+	return out, nil
+}
+
+func (r *repository) SetSourceAuthsForRoute(routeUUID uuid.UUID, authUUIDs []uuid.UUID) error {
+	log.Printf("route_auth/repo: SetSourceAuthsForRoute route=%s count=%d", routeUUID, len(authUUIDs))
+	if err := r.db.Unscoped().Where("route_uuid = ?", routeUUID).Delete(&objects.RouteSourceAuth{}).Error; err != nil {
+		log.Printf("route_auth/repo: SetSourceAuthsForRoute delete error: %v", err)
+		return err
+	}
+	for i, authUUID := range authUUIDs {
+		obj := objects.RouteSourceAuth{
+			RouteUUID:          routeUUID,
+			AuthenticationUUID: authUUID,
+			Position:           i,
+		}
+		if err := r.db.Create(&obj).Error; err != nil {
+			log.Printf("route_auth/repo: SetSourceAuthsForRoute create error: %v", err)
+			return err
+		}
+	}
+	log.Printf("route_auth/repo: SetSourceAuthsForRoute ok route=%s", routeUUID)
+	return nil
+}
+
+func (r *repository) GetTargetAuthForRoute(routeUUID uuid.UUID) (uuid.UUID, bool, error) {
+	log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s", routeUUID)
+	var obj objects.RouteTargetAuth
+	if err := r.db.Where("route_uuid = ?", routeUUID).First(&obj).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("route_auth/repo: GetTargetAuthForRoute route=%s no target auth", routeUUID)
+			return uuid.Nil, false, nil
+		}
+		log.Printf("route_auth/repo: GetTargetAuthForRoute error: %v", err)
+		return uuid.Nil, false, err
+	}
+	log.Printf("route_auth/repo: GetTargetAuthForRoute ok route=%s auth=%s", routeUUID, obj.AuthenticationUUID)
+	return obj.AuthenticationUUID, true, nil
+}
+
+func (r *repository) SetTargetAuthForRoute(routeUUID uuid.UUID, authUUID *uuid.UUID) error {
+	authStr := "none"
+	if authUUID != nil && *authUUID != uuid.Nil {
+		authStr = authUUID.String()
+	}
+	log.Printf("route_auth/repo: SetTargetAuthForRoute route=%s auth=%s", routeUUID, authStr)
+	if err := r.db.Unscoped().Where("route_uuid = ?", routeUUID).Delete(&objects.RouteTargetAuth{}).Error; err != nil {
+		log.Printf("route_auth/repo: SetTargetAuthForRoute delete error: %v", err)
+		return err
+	}
+	if authUUID != nil && *authUUID != uuid.Nil {
+		err := r.db.Create(&objects.RouteTargetAuth{
+			RouteUUID:          routeUUID,
+			AuthenticationUUID: *authUUID,
+		}).Error
+		if err != nil {
+			log.Printf("route_auth/repo: SetTargetAuthForRoute create error: %v", err)
+			return err
+		}
+	}
+	log.Printf("route_auth/repo: SetTargetAuthForRoute ok route=%s", routeUUID)
+	return nil
+}
+
+func (r *repository) GetTargetAuthenticationWithPlainToken(routeUUID uuid.UUID) (schema.Authentication, bool, error) {
+	log.Printf("route_auth/repo: GetTargetAuthenticationWithPlainToken route=%s", routeUUID)
+	authUUID, ok, err := r.GetTargetAuthForRoute(routeUUID)
+	if err != nil || !ok {
+		return schema.Authentication{}, false, err
+	}
+	auth, err := r.GetAuthenticationWithPlainToken(authUUID)
+	if err != nil {
+		return schema.Authentication{}, false, err
+	}
+	log.Printf("route_auth/repo: GetTargetAuthenticationWithPlainToken ok route=%s auth=%s", routeUUID, authUUID)
+	return auth, true, nil
 }
