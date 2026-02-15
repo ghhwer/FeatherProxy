@@ -11,38 +11,75 @@ FeatherProxy is an open-source **API gateway** that routes incoming requests to 
 
 ## Quick start
 
-**Prerequisites:** [Go](https://go.dev/) 1.21+ (or as required by `app/go.mod`).
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/).
 
-1. Clone the repo and go to its root:
+1. Pull the image from GitHub Container Registry:
    ```bash
-   git clone https://github.com/your-org/FeatherProxy.git && cd FeatherProxy
+   docker pull ghcr.io/ghhwer/FeatherProxy:latest
    ```
-2. Configure the app (all code lives in `app/`):
+2. Run the container with the UI on port 4545 and a volume for persistent data:
    ```bash
-   cp app/.env.example app/.env
+   docker run -d --name featherproxy -p 4545:4545 \
+     -v featherproxy-data:/app/data \
+     -e DB_DRIVER=sqlite \
+     -e DB_DSN=file:/app/data/data.db \
+     ghcr.io/ghhwer/FeatherProxy:latest
    ```
-   Edit `app/.env` and set at least:
-   - **`DB_DRIVER`** and **`DB_DSN`** — e.g. `sqlite` and `file:data.db`, or PostgreSQL (see [Configuration](#configuration)).
-3. Run the app:
-   ```bash
-   make run
-   ```
-4. Open **http://localhost:4545** in a browser. Use the UI to create:
+3. Open **http://localhost:4545** in a browser. Use the UI to create:
    - **Source servers** — the host:port (and optional TLS) the proxy listens on.
    - **Target servers** — the backends (protocol, host, port, base path).
    - **Routes** — which method + path on a source map to which target path (and optional auth).
 
-After you add a source server, the proxy starts listening on that address; traffic that matches a route is forwarded to the corresponding target.
+After you add a source server, the proxy starts listening on that address; traffic that matches a route is forwarded to the corresponding target. To stop: `docker stop featherproxy`. To remove: `docker rm featherproxy` (the volume `featherproxy-data` keeps your data).
 
-## Building
+## Building and running from source
 
-From the repo root:
+**Prerequisites:** [Go](https://go.dev/) 1.21+ (or as required by `app/go.mod`).
+
+1. Clone the repo and copy env config:
+   ```bash
+   git clone https://github.com/your-org/FeatherProxy.git && cd FeatherProxy
+   cp app/.env.example app/.env
+   ```
+   Edit `app/.env` and set at least **`DB_DRIVER`** and **`DB_DSN`** (see [Configuration](#configuration)).
+2. Build and run:
+   ```bash
+   make build   # produces app/featherproxy
+   make run     # or run app/featherproxy from app/
+   ```
+
+Run from `app/` so the binary finds `app/.env`, or set config via environment variables.
+
+## Docker
+
+Build the image (default tag `featherproxy:latest`):
 
 ```bash
-make build
+make docker-build
 ```
 
-This produces **`app/featherproxy`**. Run it from `app/` (so it finds `app/.env`) or set your config via environment variables.
+Run the container (UI on port 4545). Pass env vars or mount a volume for persistence:
+
+```bash
+# Minimal: in-memory SQLite (data lost when container stops)
+make docker-run
+
+# With a volume for SQLite and env from app/.env
+docker run --rm -p 4545:4545 -v $(pwd)/app/data:/app/data \
+  -e DB_DRIVER=sqlite -e DB_DSN=file:/app/data/data.db \
+  --env-file app/.env featherproxy:latest
+```
+
+Publish the image to a registry (e.g. GitHub Container Registry or Docker Hub):
+
+```bash
+# Build, tag, and push (set IMAGE to your registry/repo:tag)
+make docker-publish IMAGE=ghcr.io/myorg/featherproxy:v1.0
+# or
+make docker-publish IMAGE=docker.io/myuser/featherproxy:latest
+```
+
+Log in to the registry first (`docker login ghcr.io` or `docker login` for Docker Hub).
 
 ## Architecture
 

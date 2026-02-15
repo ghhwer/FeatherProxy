@@ -1,0 +1,27 @@
+# Git and IDE
+.git
+.gitignore
+.idea
+.vscode
+.cursor
+
+# Local env and DB (do not bake into image)
+app/.env
+*.db
+app/*.db
+
+# Build artifacts and tests
+app/featherproxy
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+_docs_scratchpad
+_tls_test
+
+# Docs (optional: remove if you want them in image)
+README.md
+LICENSE
+AGENTS.md
+app/AGENTS.md
