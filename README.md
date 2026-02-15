@@ -15,7 +15,7 @@ FeatherProxy is an open-source **API gateway** that routes incoming requests to 
 
 1. Pull the image from GitHub Container Registry:
    ```bash
-   docker pull ghcr.io/ghhwer/FeatherProxy:latest
+   docker pull ghcr.io/ghhwer/featherproxy:latest
    ```
 2. Run the container with the UI on port 4545 and a volume for persistent data:
    ```bash
@@ -23,7 +23,7 @@ FeatherProxy is an open-source **API gateway** that routes incoming requests to 
      -v featherproxy-data:/app/data \
      -e DB_DRIVER=sqlite \
      -e DB_DSN=file:/app/data/data.db \
-     ghcr.io/ghhwer/FeatherProxy:latest
+     ghcr.io/ghhwer/featherproxy:latest
    ```
 3. Open **http://localhost:4545** in a browser. Use the UI to create:
    - **Source servers** — the host:port (and optional TLS) the proxy listens on.
@@ -68,15 +68,6 @@ make docker-run
 docker run --rm -p 4545:4545 -v $(pwd)/app/data:/app/data \
   -e DB_DRIVER=sqlite -e DB_DSN=file:/app/data/data.db \
   --env-file app/.env featherproxy:latest
-```
-
-Publish the image to a registry (e.g. GitHub Container Registry or Docker Hub):
-
-```bash
-# Build, tag, and push (set IMAGE to your registry/repo:tag)
-make docker-publish IMAGE=ghcr.io/myorg/featherproxy:v1.0
-# or
-make docker-publish IMAGE=docker.io/myuser/featherproxy:latest
 ```
 
 Log in to the registry first (`docker login ghcr.io` or `docker login` for Docker Hub).
