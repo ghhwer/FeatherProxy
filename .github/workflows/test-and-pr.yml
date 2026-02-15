@@ -29,6 +29,8 @@ jobs:
   open-pr:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,5 +49,3 @@ jobs:
             --head "${{ github.ref_name }}" \
             --title "Merge ${{ github.ref_name }} into main" \
             --body "Tests passed on \`${{ github.ref_name }}\`. Ready for review."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
