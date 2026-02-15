@@ -1,0 +1,51 @@
+# On push to feat/*: run tests; if they pass, open a PR to main (or leave existing PR as-is).
+
+name: Test and open PR to main
+
+on:
+  push:
+    branches:
+      - 'feat/*'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+
+      - name: Run tests
+        run: make test
+
+  open-pr:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for existing PR
+        id: pr_check
+        run: |
+          count=$(gh pr list --base main --head "${{ github.ref_name }}" --state open --json number -q 'length')
+          echo "count=$count" >> $GITHUB_OUTPUT
+
+      - name: Create PR to main
+        if: steps.pr_check.outputs.count == '0'
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ github.ref_name }}" \
+            --title "Merge ${{ github.ref_name }} into main" \
+            --body "Tests passed on \`${{ github.ref_name }}\`. Ready for review."
