@@ -64,7 +64,7 @@ func (stubRepo) CreateProxyStats([]schema.ProxyStat) error { return nil }
 func (stubRepo) ListProxyStats(int, int, *time.Time) ([]schema.ProxyStat, int64, error) {
 	return nil, 0, nil
 }
-func (stubRepo) DeleteProxyStatsOlderThan(time.Time) error { return nil }
+func (stubRepo) DeleteProxyStatsOlderThan(time.Time) (int64, error) { return 0, nil }
 func (stubRepo) ClearAllProxyStats() error                 { return nil }
 func (stubRepo) StatsSummary() (schema.StatsSummary, error) { return schema.StatsSummary{}, nil }
 func (stubRepo) StatsByRoute(*time.Time, int) ([]schema.RouteCount, error) { return nil, nil }

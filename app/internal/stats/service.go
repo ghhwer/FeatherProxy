@@ -13,18 +13,20 @@ import (
 )
 
 const (
-	defaultBatchSize     = 50
-	defaultFlushInterval = 5 * time.Second
-	defaultChannelCap    = 1000
-	defaultRetentionDays = 30
+	defaultBatchSize      = 50
+	defaultFlushInterval  = 5 * time.Second
+	defaultChannelCap     = 1000
+	defaultRetentionDays  = 30
+	defaultVacuumInterval = 24 * time.Hour
 )
 
 // Config holds stats service configuration (from env or defaults).
 type Config struct {
-	BatchSize     int
-	FlushInterval time.Duration
-	ChannelCap    int
-	RetentionDays int
+	BatchSize      int
+	FlushInterval  time.Duration
+	ChannelCap     int
+	RetentionDays  int
+	VacuumInterval time.Duration // how often to run vacuum (delete stats older than retention)
 }
 
 // ConfigFromEnv returns config from environment (STATS_BATCH_SIZE, STATS_FLUSH_INTERVAL, etc.).
@@ -55,6 +57,11 @@ func ConfigFromEnv() Config {
 			c.RetentionDays = n
 		}
 	}
+	if v := os.Getenv("STATS_VACUUM_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			c.VacuumInterval = d
+		}
+	}
 	return c
 }
 
@@ -80,6 +87,9 @@ func NewService(repo database.Repository, config Config) *Service {
 	}
 	if config.RetentionDays <= 0 {
 		config.RetentionDays = defaultRetentionDays
+	}
+	if config.VacuumInterval <= 0 {
+		config.VacuumInterval = defaultVacuumInterval
 	}
 	return &Service{
 		repo:   repo,
@@ -107,15 +117,20 @@ func (s *Service) Run(ctx context.Context) {
 		s.runWorker(ctx)
 	}()
 
-	// Vacuum ticker: once per day (or proportional to retention)
-	vacuumInterval := 24 * time.Hour
-	if s.config.RetentionDays > 0 {
-		vacuumInterval = time.Duration(s.config.RetentionDays) * 24 * time.Hour / 2 // run at least twice per retention window
-		if vacuumInterval > 24*time.Hour {
-			vacuumInterval = 24 * time.Hour
+	// Vacuum once at start, then at configured interval (e.g. STATS_VACUUM_INTERVAL=24h)
+	runVacuum := func() {
+		until := time.Now().Add(-time.Duration(s.config.RetentionDays) * 24 * time.Hour)
+		log.Printf("stats: vacuum running (delete stats older than %s, retention=%dd)", until.Format("2006-01-02"), s.config.RetentionDays)
+		n, err := s.repo.DeleteProxyStatsOlderThan(until)
+		if err != nil {
+			log.Printf("stats: vacuum failed: %v", err)
+		} else {
+			log.Printf("stats: vacuum completed (removed %d records)", n)
 		}
 	}
-	ticker := time.NewTicker(vacuumInterval)
+	runVacuum()
+
+	ticker := time.NewTicker(s.config.VacuumInterval)
 	defer ticker.Stop()
 
 	for {
@@ -124,10 +139,7 @@ func (s *Service) Run(ctx context.Context) {
 			s.wg.Wait()
 			return
 		case <-ticker.C:
-			until := time.Now().Add(-time.Duration(s.config.RetentionDays) * 24 * time.Hour)
-			if err := s.repo.DeleteProxyStatsOlderThan(until); err != nil {
-				log.Printf("stats: vacuum failed: %v", err)
-			}
+			runVacuum()
 		}
 	}
 }

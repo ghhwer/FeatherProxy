@@ -48,8 +48,9 @@ func (r *repository) ListProxyStats(limit, offset int, since *time.Time) ([]sche
 	return out, total, nil
 }
 
-func (r *repository) DeleteProxyStatsOlderThan(until time.Time) error {
-	return r.db.Where("timestamp < ?", until).Delete(&objects.ProxyStat{}).Error
+func (r *repository) DeleteProxyStatsOlderThan(until time.Time) (int64, error) {
+	result := r.db.Where("timestamp < ?", until).Delete(&objects.ProxyStat{})
+	return result.RowsAffected, result.Error
 }
 
 func (r *repository) ClearAllProxyStats() error {

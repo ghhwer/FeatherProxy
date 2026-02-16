@@ -58,7 +58,7 @@ type Repository interface {
 	// Proxy stats (no cache; write-heavy)
 	CreateProxyStats(stats []schema.ProxyStat) error
 	ListProxyStats(limit, offset int, since *time.Time) ([]schema.ProxyStat, int64, error)
-	DeleteProxyStatsOlderThan(until time.Time) error
+	DeleteProxyStatsOlderThan(until time.Time) (int64, error)
 	ClearAllProxyStats() error
 	StatsSummary() (schema.StatsSummary, error)
 	StatsByRoute(since *time.Time, limit int) ([]schema.RouteCount, error)

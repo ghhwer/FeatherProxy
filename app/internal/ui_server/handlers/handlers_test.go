@@ -238,7 +238,7 @@ func (m *mockRepo) CreateProxyStats([]schema.ProxyStat) error { return nil }
 func (m *mockRepo) ListProxyStats(limit, offset int, since *time.Time) ([]schema.ProxyStat, int64, error) {
 	return nil, 0, nil
 }
-func (m *mockRepo) DeleteProxyStatsOlderThan(time.Time) error { return nil }
+func (m *mockRepo) DeleteProxyStatsOlderThan(time.Time) (int64, error) { return 0, nil }
 func (m *mockRepo) ClearAllProxyStats() error                 { return nil }
 func (m *mockRepo) StatsSummary() (schema.StatsSummary, error) {
 	return schema.StatsSummary{}, nil
