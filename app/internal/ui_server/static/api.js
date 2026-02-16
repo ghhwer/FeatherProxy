@@ -219,3 +219,78 @@ export async function reloadProxies() {
   }
   return { ok: true, data };
 }
+
+// --- Stats ---
+const API_STATS = '/api/stats';
+
+export async function getStats(params = {}) {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set('limit', params.limit);
+  if (params.offset != null) q.set('offset', params.offset);
+  if (params.since) q.set('since', params.since);
+  const url = API_STATS + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsSummary() {
+  const res = await fetch(API_STATS + '/summary');
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsByRoute(params = {}) {
+  const q = new URLSearchParams();
+  if (params.since) q.set('since', params.since);
+  if (params.limit != null) q.set('limit', params.limit);
+  const url = API_STATS + '/by-route' + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsByCaller(params = {}) {
+  const q = new URLSearchParams();
+  if (params.since) q.set('since', params.since);
+  if (params.limit != null) q.set('limit', params.limit);
+  const url = API_STATS + '/by-caller' + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsBySourceServer(params = {}) {
+  const q = new URLSearchParams();
+  if (params.since) q.set('since', params.since);
+  const url = API_STATS + '/by-source-server' + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsByTargetServer(params = {}) {
+  const q = new URLSearchParams();
+  if (params.since) q.set('since', params.since);
+  const url = API_STATS + '/by-target-server' + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function getStatsTPS(params = {}) {
+  const q = new URLSearchParams();
+  if (params.window) q.set('window', params.window);
+  if (params.bucket) q.set('bucket', params.bucket);
+  const url = API_STATS + '/tps' + (q.toString() ? '?' + q.toString() : '');
+  const res = await fetch(url);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function clearStats() {
+  const res = await fetch(API_STATS, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: data.error || res.statusText };
+  return { ok: true, data };
+}

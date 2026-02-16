@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"FeatherProxy/app/internal/database"
 	"FeatherProxy/app/internal/database/schema"
@@ -232,6 +233,21 @@ func (m *mockRepo) GetAuthenticationWithPlainToken(uuid.UUID) (schema.Authentica
 func (m *mockRepo) GetTargetAuthenticationWithPlainToken(uuid.UUID) (schema.Authentication, bool, error) {
 	return schema.Authentication{}, false, nil
 }
+
+func (m *mockRepo) CreateProxyStats([]schema.ProxyStat) error { return nil }
+func (m *mockRepo) ListProxyStats(limit, offset int, since *time.Time) ([]schema.ProxyStat, int64, error) {
+	return nil, 0, nil
+}
+func (m *mockRepo) DeleteProxyStatsOlderThan(time.Time) error { return nil }
+func (m *mockRepo) ClearAllProxyStats() error                 { return nil }
+func (m *mockRepo) StatsSummary() (schema.StatsSummary, error) {
+	return schema.StatsSummary{}, nil
+}
+func (m *mockRepo) StatsByRoute(*time.Time, int) ([]schema.RouteCount, error) { return nil, nil }
+func (m *mockRepo) StatsByCaller(*time.Time, int) ([]schema.CallerCount, error) { return nil, nil }
+func (m *mockRepo) StatsBySourceServer(*time.Time) ([]schema.ServerCount, error) { return nil, nil }
+func (m *mockRepo) StatsByTargetServer(*time.Time) ([]schema.ServerCount, error) { return nil, nil }
+func (m *mockRepo) StatsTPS(time.Time, time.Duration) ([]schema.BucketCount, error) { return nil, nil }
 
 var _ database.Repository = (*mockRepo)(nil)
 

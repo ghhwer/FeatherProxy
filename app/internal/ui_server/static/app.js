@@ -695,11 +695,154 @@ async function refreshAll() {
   }
   await Promise.all([loadSourceServers(), loadTargetServers(), loadAuthentications()]);
   await loadRoutes();
+  await loadStatsSummaryForHome();
+}
+
+// --- Stats (home card + stats section) ---
+async function loadStatsSummaryForHome() {
+  const el = document.getElementById('stat-requests-24h');
+  if (!el) return;
+  const result = await api.getStatsSummary();
+  if (!result.ok) {
+    el.textContent = '—';
+    return;
+  }
+  const d = result.data;
+  el.textContent = typeof d.last_24h === 'number' ? d.last_24h : '—';
+}
+
+async function loadStatsSection() {
+  const summaryResult = await api.getStatsSummary();
+  if (summaryResult.ok) {
+    const d = summaryResult.data;
+    const set = function (id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    set('stats-summary-total', 'Total: ' + (typeof d.total === 'number' ? d.total : '—'));
+    set('stats-summary-24h', '24h: ' + (typeof d.last_24h === 'number' ? d.last_24h : '—'));
+    set('stats-summary-2xx', '2xx: ' + (typeof d.status_2xx === 'number' ? d.status_2xx : '—'));
+    set('stats-summary-4xx', '4xx: ' + (typeof d.status_4xx === 'number' ? d.status_4xx : '—'));
+    set('stats-summary-5xx', '5xx: ' + (typeof d.status_5xx === 'number' ? d.status_5xx : '—'));
+    set('stats-summary-tps', 'TPS (1m): ' + (typeof d.tps_last_minute === 'number' ? d.tps_last_minute : '—'));
+  }
+  const listResult = await api.getStats({ limit: 100 });
+  const tbody = document.getElementById('stats-recent-tbody');
+  if (tbody) {
+    if (!listResult.ok) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load</td></tr>';
+    } else {
+      const list = listResult.data.stats || [];
+      const total = listResult.data.total != null ? listResult.data.total : list.length;
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No proxy requests recorded yet.</td></tr>';
+      } else {
+        tbody.innerHTML = list.map(function (s) {
+          const time = s.timestamp ? new Date(s.timestamp).toLocaleString() : '—';
+          const status = s.status_code != null ? s.status_code : '—';
+          const dur = s.duration_ms != null ? s.duration_ms + ' ms' : '—';
+          return '<tr><td>' + escapeHtml(time) + '</td><td>' + escapeHtml(s.method || '') + '</td><td>' + escapeHtml(s.path || '') + '</td><td>' + escapeHtml(String(status)) + '</td><td>' + escapeHtml(String(dur)) + '</td><td>' + escapeHtml(s.client_ip || '') + '</td></tr>';
+        }).join('');
+      }
+    }
+  }
+  const byRouteResult = await api.getStatsByRoute({ limit: 20 });
+  const byRouteTbody = document.getElementById('stats-by-route-tbody');
+  if (byRouteTbody) {
+    if (!byRouteResult.ok) {
+      byRouteTbody.innerHTML = '<tr><td colspan="3" class="empty">Failed to load</td></tr>';
+    } else {
+      const items = byRouteResult.data.items || [];
+      if (items.length === 0) {
+        byRouteTbody.innerHTML = '<tr><td colspan="3" class="empty">No data</td></tr>';
+      } else {
+        byRouteTbody.innerHTML = items.map(function (x) {
+          return '<tr><td>' + escapeHtml(x.method || '') + '</td><td>' + escapeHtml(x.source_path || '') + '</td><td>' + (x.count != null ? x.count : '—') + '</td></tr>';
+        }).join('');
+      }
+    }
+  }
+  const byCallerResult = await api.getStatsByCaller({ limit: 20 });
+  const byCallerTbody = document.getElementById('stats-by-caller-tbody');
+  if (byCallerTbody) {
+    if (!byCallerResult.ok) {
+      byCallerTbody.innerHTML = '<tr><td colspan="2" class="empty">Failed to load</td></tr>';
+    } else {
+      const items = byCallerResult.data.items || [];
+      if (items.length === 0) {
+        byCallerTbody.innerHTML = '<tr><td colspan="2" class="empty">No data</td></tr>';
+      } else {
+        byCallerTbody.innerHTML = items.map(function (x) {
+          return '<tr><td>' + escapeHtml(x.client_ip || '') + '</td><td>' + (x.count != null ? x.count : '—') + '</td></tr>';
+        }).join('');
+      }
+    }
+  }
+  const bySourceResult = await api.getStatsBySourceServer();
+  const bySourceTbody = document.getElementById('stats-by-source-tbody');
+  if (bySourceTbody) {
+    if (!bySourceResult.ok) {
+      bySourceTbody.innerHTML = '<tr><td colspan="2" class="empty">Failed to load</td></tr>';
+    } else {
+      const items = bySourceResult.data.items || [];
+      if (items.length === 0) {
+        bySourceTbody.innerHTML = '<tr><td colspan="2" class="empty">No data</td></tr>';
+      } else {
+        bySourceTbody.innerHTML = items.map(function (x) {
+          return '<tr><td>' + escapeHtml(x.source_server_uuid || '') + '</td><td>' + (x.count != null ? x.count : '—') + '</td></tr>';
+        }).join('');
+      }
+    }
+  }
+  const byTargetResult = await api.getStatsByTargetServer();
+  const byTargetTbody = document.getElementById('stats-by-target-tbody');
+  if (byTargetTbody) {
+    if (!byTargetResult.ok) {
+      byTargetTbody.innerHTML = '<tr><td colspan="2" class="empty">Failed to load</td></tr>';
+    } else {
+      const items = byTargetResult.data.items || [];
+      if (items.length === 0) {
+        byTargetTbody.innerHTML = '<tr><td colspan="2" class="empty">No data</td></tr>';
+      } else {
+        byTargetTbody.innerHTML = items.map(function (x) {
+          return '<tr><td>' + escapeHtml(x.target_server_uuid || '') + '</td><td>' + (x.count != null ? x.count : '—') + '</td></tr>';
+        }).join('');
+      }
+    }
+  }
+  const tpsResult = await api.getStatsTPS({ window: '1h', bucket: '1m' });
+  const tpsContainer = document.getElementById('stats-tps-container');
+  if (tpsContainer) {
+    if (!tpsResult.ok) {
+      tpsContainer.textContent = 'Failed to load';
+    } else {
+      const buckets = tpsResult.data.buckets || [];
+      if (buckets.length === 0) {
+        tpsContainer.textContent = 'No data for the last hour';
+      } else {
+        tpsContainer.textContent = buckets.map(function (b) {
+          return (b.at ? new Date(b.at).toLocaleTimeString() : '') + ': ' + (b.count != null ? b.count : 0) + ' req';
+        }).join(' \u2022 ');
+      }
+    }
+  }
+}
+
+function clearStatsConfirm() {
+  if (!confirm('Clear all proxy statistics? This cannot be undone.')) return;
+  api.clearStats().then(function (result) {
+    if (result.ok) {
+      loadStatsSection();
+      loadStatsSummaryForHome();
+    } else {
+      alert(result.error || 'Failed to clear stats');
+    }
+  });
 }
 
 // Tab switching: show one section, hide others, update nav and title
-const SECTION_IDS = ['home', 'sources', 'targets', 'auth', 'routes'];
-const SECTION_TITLES = { home: 'Dashboard', sources: 'Source servers', targets: 'Target servers', auth: 'Authentications', routes: 'Routes' };
+const SECTION_IDS = ['home', 'sources', 'targets', 'auth', 'routes', 'stats'];
+const SECTION_TITLES = { home: 'Dashboard', sources: 'Source servers', targets: 'Target servers', auth: 'Authentications', routes: 'Routes', stats: 'Proxy statistics' };
 
 function showSection(id) {
   if (!id || SECTION_IDS.indexOf(id) === -1) return;
@@ -715,6 +858,7 @@ function showSection(id) {
     });
   }
   if (pageTitleEl && SECTION_TITLES[id]) pageTitleEl.textContent = SECTION_TITLES[id];
+  if (id === 'stats') loadStatsSection();
 }
 
 (function () {
@@ -776,6 +920,8 @@ window.deleteRoute = deleteRoute;
 window.openRouteAuthModal = openRouteAuthModal;
 window.closeRouteAuthModal = closeRouteAuthModal;
 window.submitRouteAuth = submitRouteAuth;
+window.loadStatsSection = loadStatsSection;
+window.clearStatsConfirm = clearStatsConfirm;
 
 // Initial load
 refreshAll();

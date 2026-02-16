@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database"
 	"FeatherProxy/app/internal/database/schema"
+	"FeatherProxy/app/internal/stats"
 
 	"github.com/google/uuid"
 )
@@ -76,16 +78,19 @@ func peekAndRestoreBody(r *http.Request) {
 type Service struct {
 	repo     database.Repository
 	resolver HostnameResolver
+	recorder stats.Recorder // optional; when set, proxied requests are recorded for stats
 }
 
 // NewService returns a proxy service that uses the given repository for route
 // and server lookups. It configures a HostnameResolver for ACL hostname and
 // wildcard matching, using the same cache instance and TTL as the database
-// cache when available.
-func NewService(repo database.Repository, c cache.Cache, cacheTTL time.Duration) *Service {
+// cache when available. If recorder is non-nil, successfully proxied requests
+// are recorded asynchronously for statistics.
+func NewService(repo database.Repository, c cache.Cache, cacheTTL time.Duration, recorder stats.Recorder) *Service {
 	return &Service{
 		repo:     repo,
 		resolver: NewResolver(c, cacheTTL),
+		recorder: recorder,
 	}
 }
 
@@ -147,6 +152,44 @@ func (s *Service) Run(ctx context.Context) error {
 	return nil
 }
 
+// responseRecorder wraps http.ResponseWriter to capture status code and duration.
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	written    bool
+	start      time.Time
+}
+
+func (rw *responseRecorder) WriteHeader(code int) {
+	if !rw.written {
+		rw.statusCode = code
+		rw.written = true
+	}
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseRecorder) Write(p []byte) (int, error) {
+	if !rw.written {
+		rw.statusCode = http.StatusOK
+		rw.written = true
+	}
+	return rw.ResponseWriter.Write(p)
+}
+
+// clientIPString returns the client IP string for stats, using the same logic as ACL.
+func clientIPString(r *http.Request, acl *schema.ACLOptions) string {
+	ip := clientIPFromRequest(r, acl)
+	if ip != nil {
+		return ip.String()
+	}
+	// Fallback: strip port from RemoteAddr if present
+	addr := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return addr
+}
+
 // handler returns an http.Handler that routes requests for the given source server.
 func (s *Service) handler(sourceServerUUID uuid.UUID) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,9 +246,35 @@ func (s *Service) handler(sourceServerUUID uuid.UUID) http.Handler {
 		targetURL := buildTargetURL(&target, &route, r.URL.RawQuery)
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 		proxy.Director = director(targetURL, r, targetAuth)
+
+		start := time.Now()
+		var rec *responseRecorder
+		if s.recorder != nil {
+			rec = &responseRecorder{ResponseWriter: w, statusCode: http.StatusOK, start: start}
+			w = rec
+		}
 		proxy.ServeHTTP(w, r)
+
+		if s.recorder != nil && rec != nil {
+			dur := time.Since(rec.start).Milliseconds()
+			stat := schema.ProxyStat{
+				Timestamp:        start,
+				SourceServerUUID: sourceServerUUID,
+				RouteUUID:        route.RouteUUID,
+				TargetServerUUID: route.TargetServerUUID,
+				Method:           r.Method,
+				Path:             r.URL.Path,
+				StatusCode:       intPtr(rec.statusCode),
+				DurationMs:       int64Ptr(dur),
+				ClientIP:         clientIPString(r, &acl),
+			}
+			s.recorder.Record(stat)
+		}
 	})
 }
+
+func intPtr(n int) *int       { return &n }
+func int64Ptr(n int64) *int64 { return &n }
 
 // director returns a Director that rewrites the outgoing request to the backend URL and sets forwarding headers.
 // If targetAuth is set, the outgoing Authorization header is set to that credential (e.g. Bearer token) and the

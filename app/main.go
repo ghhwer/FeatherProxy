@@ -11,6 +11,7 @@ import (
 	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database"
 	"FeatherProxy/app/internal/proxy"
+	"FeatherProxy/app/internal/stats"
 	server "FeatherProxy/app/internal/ui_server"
 
 	"github.com/joho/godotenv"
@@ -54,8 +55,7 @@ func main() {
 		default:
 		}
 	})
-	// Proxy service.
-	proxyService := proxy.NewService(repo, sharedCache, cacheTTL)
+
 	// Context to stop the server and proxy.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -63,6 +63,16 @@ func main() {
 	// Cancel the whole process if the UI server fails (e.g. port in use).
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Stats service (async recorder for proxy metrics).
+	statsConfig := stats.ConfigFromEnv()
+	statsSvc := stats.NewService(repo, statsConfig)
+	go func() {
+		statsSvc.Run(runCtx)
+	}()
+
+	// Proxy service (optional stats recorder).
+	proxyService := proxy.NewService(repo, sharedCache, cacheTTL, statsSvc)
 
 	go func() {
 		log.Println("server: listening on http://localhost:4545")

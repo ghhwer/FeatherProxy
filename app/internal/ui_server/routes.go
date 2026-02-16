@@ -23,6 +23,16 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/routes", s.handleRoutesCollection)
 	mux.HandleFunc("/api/routes/", s.handleRouteOrRouteAuth)
 
+	// Stats API (register longer paths first)
+	mux.HandleFunc("/api/stats/summary", s.handleStatsSummary)
+	mux.HandleFunc("/api/stats/by-route", s.handleStatsByRoute)
+	mux.HandleFunc("/api/stats/by-caller", s.handleStatsByCaller)
+	mux.HandleFunc("/api/stats/by-source-server", s.handleStatsBySourceServer)
+	mux.HandleFunc("/api/stats/by-target-server", s.handleStatsByTargetServer)
+	mux.HandleFunc("/api/stats/tps", s.handleStatsTPS)
+	mux.HandleFunc("/api/stats/clear", s.handleStatsClear)
+	mux.HandleFunc("/api/stats", s.handleStatsCollection)
+
 	// UI: serve anything under static from disk (no embed)
 	mux.HandleFunc("/", s.handleStatic)
 
@@ -253,4 +263,48 @@ func (s *Server) handleAuthenticationByID(w http.ResponseWriter, r *http.Request
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleStatsCollection: GET /api/stats (list), DELETE /api/stats (clear).
+func (s *Server) handleStatsCollection(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/api/stats" {
+		http.NotFound(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		handlers.ListStats(s.repo, w, r)
+	case http.MethodDelete:
+		handlers.ClearStats(s.repo, w, r)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleStatsSummary(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsSummary(s.repo, w, r)
+}
+
+func (s *Server) handleStatsByRoute(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsByRoute(s.repo, w, r)
+}
+
+func (s *Server) handleStatsByCaller(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsByCaller(s.repo, w, r)
+}
+
+func (s *Server) handleStatsBySourceServer(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsBySourceServer(s.repo, w, r)
+}
+
+func (s *Server) handleStatsByTargetServer(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsByTargetServer(s.repo, w, r)
+}
+
+func (s *Server) handleStatsTPS(w http.ResponseWriter, r *http.Request) {
+	handlers.GetStatsTPS(s.repo, w, r)
+}
+
+func (s *Server) handleStatsClear(w http.ResponseWriter, r *http.Request) {
+	handlers.ClearStats(s.repo, w, r)
 }

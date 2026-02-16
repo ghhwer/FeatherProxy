@@ -18,6 +18,7 @@
       <symbol id="icon-targets" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
       <symbol id="icon-auth" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
       <symbol id="icon-routes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+      <symbol id="icon-stats" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
     </defs>
   </svg>
 
@@ -48,6 +49,10 @@
         <a href="#routes" class="section-nav-link">
           <svg class="nav-icon" aria-hidden="true"><use href="#icon-routes"/></svg>
           <span>Routes</span>
+        </a>
+        <a href="#stats" class="section-nav-link">
+          <svg class="nav-icon" aria-hidden="true"><use href="#icon-stats"/></svg>
+          <span>Stats</span>
         </a>
       </nav>
       <div class="sidebar-footer">
@@ -91,6 +96,13 @@
           </span>
           <span id="stat-routes-count" class="stat-count">—</span>
           <span class="stat-label">Routes</span>
+        </a>
+        <a href="#stats" class="stat-card stat-card-link" data-section="stats">
+          <span class="stat-card-icon" aria-hidden="true">
+            <svg><use href="#icon-stats"/></svg>
+          </span>
+          <span id="stat-requests-24h" class="stat-count">—</span>
+          <span class="stat-label">Requests (24h)</span>
         </a>
       </div>
     </section>
@@ -174,6 +186,91 @@
           <tr><td colspan="6" class="empty">Loading…</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <section id="stats" class="section hidden">
+      <h2 class="section-title">Proxy statistics</h2>
+      <p class="section-desc">Metrics for proxied requests. Data is recorded asynchronously.</p>
+      <div class="stats-summary-row">
+        <span id="stats-summary-total">Total: —</span>
+        <span id="stats-summary-24h">24h: —</span>
+        <span id="stats-summary-2xx">2xx: —</span>
+        <span id="stats-summary-4xx">4xx: —</span>
+        <span id="stats-summary-5xx">5xx: —</span>
+        <span id="stats-summary-tps">TPS (1m): —</span>
+      </div>
+      <div class="toolbar">
+        <button type="button" onclick="loadStatsSection()">Refresh</button>
+        <button type="button" class="danger" onclick="clearStatsConfirm()">Clear all metrics</button>
+      </div>
+      <div class="stats-panels">
+        <div class="stats-panel">
+          <h3>Recent requests</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Client IP</th>
+              </tr>
+            </thead>
+            <tbody id="stats-recent-tbody">
+              <tr><td colspan="6" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stats-panel">
+          <h3>By route</h3>
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Source path</th><th>Count</th></tr>
+            </thead>
+            <tbody id="stats-by-route-tbody">
+              <tr><td colspan="3" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stats-panel">
+          <h3>By caller (client IP)</h3>
+          <table>
+            <thead>
+              <tr><th>Client IP</th><th>Count</th></tr>
+            </thead>
+            <tbody id="stats-by-caller-tbody">
+              <tr><td colspan="2" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stats-panel">
+          <h3>By source server</h3>
+          <table>
+            <thead>
+              <tr><th>Source server UUID</th><th>Count</th></tr>
+            </thead>
+            <tbody id="stats-by-source-tbody">
+              <tr><td colspan="2" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stats-panel">
+          <h3>By target server</h3>
+          <table>
+            <thead>
+              <tr><th>Target server UUID</th><th>Count</th></tr>
+            </thead>
+            <tbody id="stats-by-target-tbody">
+              <tr><td colspan="2" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stats-panel">
+          <h3>Requests over time (TPS)</h3>
+          <div id="stats-tps-container" class="stats-tps-container">Loading…</div>
+        </div>
+      </div>
     </section>
     </main>
   </div>

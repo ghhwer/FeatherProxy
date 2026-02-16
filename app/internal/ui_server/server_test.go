@@ -60,6 +60,18 @@ func (stubRepo) SetTargetAuthForRoute(uuid.UUID, *uuid.UUID) error           { r
 func (stubRepo) GetTargetAuthenticationWithPlainToken(uuid.UUID) (schema.Authentication, bool, error) {
 	return schema.Authentication{}, false, nil
 }
+func (stubRepo) CreateProxyStats([]schema.ProxyStat) error { return nil }
+func (stubRepo) ListProxyStats(int, int, *time.Time) ([]schema.ProxyStat, int64, error) {
+	return nil, 0, nil
+}
+func (stubRepo) DeleteProxyStatsOlderThan(time.Time) error { return nil }
+func (stubRepo) ClearAllProxyStats() error                 { return nil }
+func (stubRepo) StatsSummary() (schema.StatsSummary, error) { return schema.StatsSummary{}, nil }
+func (stubRepo) StatsByRoute(*time.Time, int) ([]schema.RouteCount, error) { return nil, nil }
+func (stubRepo) StatsByCaller(*time.Time, int) ([]schema.CallerCount, error) { return nil, nil }
+func (stubRepo) StatsBySourceServer(*time.Time) ([]schema.ServerCount, error) { return nil, nil }
+func (stubRepo) StatsByTargetServer(*time.Time) ([]schema.ServerCount, error) { return nil, nil }
+func (stubRepo) StatsTPS(time.Time, time.Duration) ([]schema.BucketCount, error) { return nil, nil }
 
 var _ database.Repository = (*stubRepo)(nil)
 
