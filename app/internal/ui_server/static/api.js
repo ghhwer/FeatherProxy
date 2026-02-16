@@ -66,6 +66,20 @@ export async function setSourceServerOptions(uuid, body) {
   });
 }
 
+export async function getSourceServerACL(uuid) {
+  const res = await fetch(API_SOURCE + '/' + uuid + '/acl');
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error || res.statusText };
+  return { ok: true, data: await res.json() };
+}
+
+export async function setSourceServerACL(uuid, body) {
+  return request(API_SOURCE + '/' + uuid + '/acl', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+
 // --- Target servers ---
 export async function getTargetServers() {
   const res = await fetch(API_TARGET);

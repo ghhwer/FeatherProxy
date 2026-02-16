@@ -163,11 +163,14 @@ func Test_director(t *testing.T) {
 
 // mockRepo implements database.Repository for tests; only proxy-used methods are set.
 type mockRepo struct {
-	listSources     func() ([]schema.SourceServer, error)
-	getServerOpts   func(uuid.UUID) (schema.ServerOptions, error)
-	findRoute       func(sourceUUID uuid.UUID, method, path string) (schema.Route, error)
-	getTarget       func(uuid.UUID) (schema.TargetServer, error)
-	getTargetAuth   func(routeUUID uuid.UUID) (schema.Authentication, bool, error)
+	listSources   func() ([]schema.SourceServer, error)
+	getServerOpts func(uuid.UUID) (schema.ServerOptions, error)
+	getACLOpts    func(uuid.UUID) (schema.ACLOptions, error)
+	findRoute     func(sourceUUID uuid.UUID, method, path string) (schema.Route, error)
+	getTarget     func(uuid.UUID) (schema.TargetServer, error)
+	getTargetAuth func(routeUUID uuid.UUID) (schema.Authentication, bool, error)
+	listSourceAuthsForRoute func(routeUUID uuid.UUID) ([]schema.RouteSourceAuth, error)
+	getAuthWithPlainToken   func(id uuid.UUID) (schema.Authentication, error)
 }
 
 func (m *mockRepo) ListSourceServers() ([]schema.SourceServer, error) {
@@ -181,6 +184,12 @@ func (m *mockRepo) GetServerOptions(uuid.UUID) (schema.ServerOptions, error) {
 		return m.getServerOpts(uuid.UUID{})
 	}
 	return schema.ServerOptions{}, nil
+}
+func (m *mockRepo) GetACLOptions(id uuid.UUID) (schema.ACLOptions, error) {
+	if m.getACLOpts != nil {
+		return m.getACLOpts(id)
+	}
+	return schema.ACLOptions{}, nil
 }
 func (m *mockRepo) FindRouteBySourceMethodPath(s uuid.UUID, method, path string) (schema.Route, error) {
 	if m.findRoute != nil {
@@ -201,11 +210,26 @@ func (m *mockRepo) GetTargetAuthenticationWithPlainToken(routeUUID uuid.UUID) (s
 	return schema.Authentication{}, false, nil
 }
 
+func (m *mockRepo) ListSourceAuthsForRoute(routeUUID uuid.UUID) ([]schema.RouteSourceAuth, error) {
+	if m.listSourceAuthsForRoute != nil {
+		return m.listSourceAuthsForRoute(routeUUID)
+	}
+	return nil, nil
+}
+
+func (m *mockRepo) GetAuthenticationWithPlainToken(id uuid.UUID) (schema.Authentication, error) {
+	if m.getAuthWithPlainToken != nil {
+		return m.getAuthWithPlainToken(id)
+	}
+	return schema.Authentication{}, nil
+}
+
 func (m *mockRepo) CreateSourceServer(schema.SourceServer) error              { return nil }
 func (m *mockRepo) GetSourceServer(uuid.UUID) (schema.SourceServer, error)    { return schema.SourceServer{}, nil }
 func (m *mockRepo) UpdateSourceServer(schema.SourceServer) error              { return nil }
 func (m *mockRepo) DeleteSourceServer(uuid.UUID) error                       { return nil }
 func (m *mockRepo) SetServerOptions(schema.ServerOptions) error              { return nil }
+func (m *mockRepo) SetACLOptions(schema.ACLOptions) error                     { return nil }
 func (m *mockRepo) CreateTargetServer(schema.TargetServer) error              { return nil }
 func (m *mockRepo) UpdateTargetServer(schema.TargetServer) error              { return nil }
 func (m *mockRepo) DeleteTargetServer(uuid.UUID) error                       { return nil }
@@ -219,13 +243,9 @@ func (m *mockRepo) GetRouteFromSourcePath(string) (schema.Route, error)       { 
 func (m *mockRepo) GetRouteFromTargetPath(string) (schema.Route, error)       { return schema.Route{}, nil }
 func (m *mockRepo) CreateAuthentication(schema.Authentication) error          { return nil }
 func (m *mockRepo) GetAuthentication(uuid.UUID) (schema.Authentication, error) { return schema.Authentication{}, nil }
-func (m *mockRepo) GetAuthenticationWithPlainToken(uuid.UUID) (schema.Authentication, error) {
-	return schema.Authentication{}, nil
-}
 func (m *mockRepo) UpdateAuthentication(schema.Authentication) error         { return nil }
 func (m *mockRepo) DeleteAuthentication(uuid.UUID) error                     { return nil }
 func (m *mockRepo) ListAuthentications() ([]schema.Authentication, error)    { return nil, nil }
-func (m *mockRepo) ListSourceAuthsForRoute(uuid.UUID) ([]schema.RouteSourceAuth, error) { return nil, nil }
 func (m *mockRepo) SetSourceAuthsForRoute(uuid.UUID, []uuid.UUID) error       { return nil }
 func (m *mockRepo) GetTargetAuthForRoute(uuid.UUID) (uuid.UUID, bool, error)  { return uuid.Nil, false, nil }
 func (m *mockRepo) SetTargetAuthForRoute(uuid.UUID, *uuid.UUID) error         { return nil }
@@ -236,6 +256,7 @@ func Test_Service_handler(t *testing.T) {
 	sourceUUID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	routeUUID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	targetUUID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	authUUID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
 
 	t.Run("404 when route not found", func(t *testing.T) {
 		mock := &mockRepo{
@@ -314,6 +335,237 @@ func Test_Service_handler(t *testing.T) {
 		svc := NewService(mock)
 		h := svc.handler(sourceUUID)
 		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", rec.Code)
+		}
+		if rec.Body.String() != "ok" {
+			t.Errorf("body = %q", rec.Body.String())
+		}
+	})
+
+	t.Run("403 when ACL allow_only and client IP not in list", func(t *testing.T) {
+		mock := &mockRepo{
+			getACLOpts: func(uuid.UUID) (schema.ACLOptions, error) {
+				return schema.ACLOptions{
+					Mode:      "allow_only",
+					AllowList: []string{"10.0.0.0/8"},
+				}, nil
+			},
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{}, errors.New("no route")
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("status = %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("200 when ACL allow_only and client IP in list", func(t *testing.T) {
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		}))
+		defer backend.Close()
+		backendURL, _ := url.Parse(backend.URL)
+		mock := &mockRepo{
+			getACLOpts: func(uuid.UUID) (schema.ACLOptions, error) {
+				return schema.ACLOptions{
+					Mode:      "allow_only",
+					AllowList: []string{"192.168.1.0/24"},
+				}, nil
+			},
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{
+					RouteUUID:        routeUUID,
+					TargetServerUUID: targetUUID,
+					Method:           "GET",
+					SourcePath:       "/foo",
+					TargetPath:       "/bar",
+				}, nil
+			},
+			getTarget: func(u uuid.UUID) (schema.TargetServer, error) {
+				return schema.TargetServer{
+					TargetServerUUID: targetUUID,
+					Protocol:         backendURL.Scheme,
+					Host:             backendURL.Host,
+					Port:             0,
+					BasePath:         "/",
+				}, nil
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", rec.Code)
+		}
+	})
+
+	t.Run("403 when ACL deny_only and client IP in deny list", func(t *testing.T) {
+		mock := &mockRepo{
+			getACLOpts: func(uuid.UUID) (schema.ACLOptions, error) {
+				return schema.ACLOptions{
+					Mode:     "deny_only",
+					DenyList: []string{"192.168.1.1"},
+				}, nil
+			},
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{}, errors.New("no route")
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("status = %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("200 when ACL deny_only and client IP not in deny list", func(t *testing.T) {
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		}))
+		defer backend.Close()
+		backendURL, _ := url.Parse(backend.URL)
+		mock := &mockRepo{
+			getACLOpts: func(uuid.UUID) (schema.ACLOptions, error) {
+				return schema.ACLOptions{
+					Mode:     "deny_only",
+					DenyList: []string{"10.0.0.1"},
+				}, nil
+			},
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{
+					RouteUUID:        routeUUID,
+					TargetServerUUID: targetUUID,
+					Method:           "GET",
+					SourcePath:       "/foo",
+					TargetPath:       "/bar",
+				}, nil
+			},
+			getTarget: func(u uuid.UUID) (schema.TargetServer, error) {
+				return schema.TargetServer{
+					TargetServerUUID: targetUUID,
+					Protocol:         backendURL.Scheme,
+					Host:             backendURL.Host,
+					Port:             0,
+					BasePath:         "/",
+				}, nil
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		req.RemoteAddr = "192.168.1.1:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("status = %d, want 200", rec.Code)
+		}
+	})
+
+	t.Run("403 when source auth configured and Authorization missing", func(t *testing.T) {
+		mock := &mockRepo{
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{
+					RouteUUID:        routeUUID,
+					TargetServerUUID: targetUUID,
+					Method:           "GET",
+					SourcePath:       "/foo",
+					TargetPath:       "/bar",
+				}, nil
+			},
+			getTarget: func(u uuid.UUID) (schema.TargetServer, error) {
+				return schema.TargetServer{
+					TargetServerUUID: targetUUID,
+					Protocol:         "http",
+					Host:             "example.com",
+					Port:             80,
+					BasePath:         "/api",
+				}, nil
+			},
+			listSourceAuthsForRoute: func(uuid.UUID) ([]schema.RouteSourceAuth, error) {
+				return []schema.RouteSourceAuth{
+					{RouteUUID: routeUUID, AuthenticationUUID: authUUID, Position: 0},
+				}, nil
+			},
+			getAuthWithPlainToken: func(id uuid.UUID) (schema.Authentication, error) {
+				return schema.Authentication{
+					AuthenticationUUID: authUUID,
+					TokenType:          "Bearer",
+					Token:              "secret",
+				}, nil
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("status = %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("200 when source auth configured and Authorization matches", func(t *testing.T) {
+		backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		}))
+		defer backend.Close()
+		backendURL, _ := url.Parse(backend.URL)
+
+		mock := &mockRepo{
+			findRoute: func(_ uuid.UUID, _, _ string) (schema.Route, error) {
+				return schema.Route{
+					RouteUUID:        routeUUID,
+					TargetServerUUID: targetUUID,
+					Method:           "GET",
+					SourcePath:       "/foo",
+					TargetPath:       "/bar",
+				}, nil
+			},
+			getTarget: func(u uuid.UUID) (schema.TargetServer, error) {
+				return schema.TargetServer{
+					TargetServerUUID: targetUUID,
+					Protocol:         backendURL.Scheme,
+					Host:             backendURL.Host,
+					Port:             0,
+					BasePath:         "/",
+				}, nil
+			},
+			listSourceAuthsForRoute: func(uuid.UUID) ([]schema.RouteSourceAuth, error) {
+				return []schema.RouteSourceAuth{
+					{RouteUUID: routeUUID, AuthenticationUUID: authUUID, Position: 0},
+				}, nil
+			},
+			getAuthWithPlainToken: func(id uuid.UUID) (schema.Authentication, error) {
+				return schema.Authentication{
+					AuthenticationUUID: authUUID,
+					TokenType:          "Bearer",
+					Token:              "secret",
+				}, nil
+			},
+		}
+		svc := NewService(mock)
+		h := svc.handler(sourceUUID)
+		req := httptest.NewRequest(http.MethodGet, "http://localhost/foo", nil)
+		req.Header.Set("Authorization", "Bearer secret")
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

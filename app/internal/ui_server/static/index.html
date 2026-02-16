@@ -206,6 +206,26 @@
           </div>
         </div>
         <div class="form-group">
+          <label>ACL mode</label>
+          <select name="acl_mode">
+            <option value="off">Off</option>
+            <option value="allow_only">Allow list only</option>
+            <option value="deny_only">Deny list only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Header for client IP</label>
+          <input name="acl_client_ip_header" placeholder="Leave empty for connection address, or e.g. X-Forwarded-For, X-Real-IP" />
+        </div>
+        <div class="form-group">
+          <label>Allow list (one IP or CIDR per line)</label>
+          <textarea name="acl_allow_list" rows="3" placeholder="e.g. 192.168.1.0/24&#10;10.0.0.1"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Deny list (one IP or CIDR per line)</label>
+          <textarea name="acl_deny_list" rows="3" placeholder="e.g. 192.168.1.100"></textarea>
+        </div>
+        <div class="form-group">
           <label>Host</label>
           <input name="host" required placeholder="0.0.0.0" />
         </div>
@@ -246,6 +266,26 @@
             <label>TLS key path</label>
             <input name="tls_key_path" placeholder="/path/to/key.pem" />
           </div>
+        </div>
+        <div class="form-group">
+          <label>ACL mode</label>
+          <select name="acl_mode">
+            <option value="off">Off</option>
+            <option value="allow_only">Allow list only</option>
+            <option value="deny_only">Deny list only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Header for client IP</label>
+          <input name="acl_client_ip_header" placeholder="Leave empty for connection address, or e.g. X-Forwarded-For, X-Real-IP" />
+        </div>
+        <div class="form-group">
+          <label>Allow list (one IP or CIDR per line)</label>
+          <textarea name="acl_allow_list" rows="3" placeholder="e.g. 192.168.1.0/24&#10;10.0.0.1"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Deny list (one IP or CIDR per line)</label>
+          <textarea name="acl_deny_list" rows="3" placeholder="e.g. 192.168.1.100"></textarea>
         </div>
         <div class="form-group">
           <label>Host</label>

@@ -24,6 +24,8 @@ type mockRepo struct {
 	FnDeleteSourceServer   func(uuid.UUID) error
 	FnGetServerOptions     func(uuid.UUID) (schema.ServerOptions, error)
 	FnSetServerOptions     func(schema.ServerOptions) error
+	FnGetACLOptions        func(uuid.UUID) (schema.ACLOptions, error)
+	FnSetACLOptions        func(schema.ACLOptions) error
 	FnListTargetServers    func() ([]schema.TargetServer, error)
 	FnCreateTargetServer   func(schema.TargetServer) error
 	FnGetTargetServer      func(uuid.UUID) (schema.TargetServer, error)
@@ -84,6 +86,18 @@ func (m *mockRepo) GetServerOptions(id uuid.UUID) (schema.ServerOptions, error) 
 func (m *mockRepo) SetServerOptions(opts schema.ServerOptions) error {
 	if m.FnSetServerOptions != nil {
 		return m.FnSetServerOptions(opts)
+	}
+	return nil
+}
+func (m *mockRepo) GetACLOptions(id uuid.UUID) (schema.ACLOptions, error) {
+	if m.FnGetACLOptions != nil {
+		return m.FnGetACLOptions(id)
+	}
+	return schema.ACLOptions{}, gorm.ErrRecordNotFound
+}
+func (m *mockRepo) SetACLOptions(opts schema.ACLOptions) error {
+	if m.FnSetACLOptions != nil {
+		return m.FnSetACLOptions(opts)
 	}
 	return nil
 }
@@ -324,6 +338,91 @@ func TestDeleteSourceServer(t *testing.T) {
 	DeleteSourceServer(repo, w, httptest.NewRequest(http.MethodDelete, "/", nil), id.String())
 	if w.Code != http.StatusNoContent {
 		t.Errorf("status = %d, want 204", w.Code)
+	}
+}
+
+func TestGetACLOptions_notFound(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		FnGetSourceServer: func(uuid.UUID) (schema.SourceServer, error) {
+			return schema.SourceServer{SourceServerUUID: id}, nil
+		},
+		// FnGetACLOptions nil => returns ErrRecordNotFound
+	}
+	w := httptest.NewRecorder()
+	GetACLOptions(repo, w, httptest.NewRequest(http.MethodGet, "/", nil), id.String())
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestGetACLOptions_ok(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		FnGetSourceServer: func(uuid.UUID) (schema.SourceServer, error) {
+			return schema.SourceServer{SourceServerUUID: id}, nil
+		},
+		FnGetACLOptions: func(uuid.UUID) (schema.ACLOptions, error) {
+			return schema.ACLOptions{
+				SourceServerUUID: id,
+				Mode:             "allow_only",
+				ClientIPHeader:   "X-Forwarded-For",
+				AllowList:        []string{"192.168.1.0/24"},
+			}, nil
+		},
+	}
+	w := httptest.NewRecorder()
+	GetACLOptions(repo, w, httptest.NewRequest(http.MethodGet, "/", nil), id.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	var got schema.ACLOptions
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Mode != "allow_only" || got.ClientIPHeader != "X-Forwarded-For" || len(got.AllowList) != 1 {
+		t.Errorf("got = %+v", got)
+	}
+}
+
+func TestSetACLOptions_ok(t *testing.T) {
+	id := uuid.New()
+	var saved schema.ACLOptions
+	repo := &mockRepo{
+		FnGetSourceServer: func(uuid.UUID) (schema.SourceServer, error) {
+			return schema.SourceServer{SourceServerUUID: id}, nil
+		},
+		FnSetACLOptions: func(opts schema.ACLOptions) error {
+			saved = opts
+			return nil
+		},
+		FnGetACLOptions: func(uuid.UUID) (schema.ACLOptions, error) {
+			return saved, nil
+		},
+	}
+	body := `{"mode":"deny_only","client_ip_header":"X-Real-IP","allow_list":[],"deny_list":["10.0.0.1"]}`
+	w := httptest.NewRecorder()
+	SetACLOptions(repo, w, httptest.NewRequest(http.MethodPut, "/", bytes.NewReader([]byte(body))), id.String())
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	if saved.Mode != "deny_only" || saved.ClientIPHeader != "X-Real-IP" || len(saved.DenyList) != 1 || saved.DenyList[0] != "10.0.0.1" {
+		t.Errorf("saved = %+v", saved)
+	}
+}
+
+func TestSetACLOptions_invalidMode(t *testing.T) {
+	id := uuid.New()
+	repo := &mockRepo{
+		FnGetSourceServer: func(uuid.UUID) (schema.SourceServer, error) {
+			return schema.SourceServer{SourceServerUUID: id}, nil
+		},
+	}
+	body := `{"mode":"invalid","allow_list":[],"deny_list":[]}`
+	w := httptest.NewRecorder()
+	SetACLOptions(repo, w, httptest.NewRequest(http.MethodPut, "/", bytes.NewReader([]byte(body))), id.String())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
 	}
 }
 

@@ -22,6 +22,9 @@ type Repository interface {
 	// Server options (1:1 with source server; e.g. TLS for HTTPS)
 	GetServerOptions(sourceServerUUID uuid.UUID) (schema.ServerOptions, error)
 	SetServerOptions(opts schema.ServerOptions) error
+	// ACL options (1:1 with source server; allow/deny by client IP/CIDR)
+	GetACLOptions(sourceServerUUID uuid.UUID) (schema.ACLOptions, error)
+	SetACLOptions(opts schema.ACLOptions) error
 	// Target servers
 	CreateTargetServer(t schema.TargetServer) error
 	GetTargetServer(uuid uuid.UUID) (schema.TargetServer, error)

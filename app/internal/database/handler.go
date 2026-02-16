@@ -60,6 +60,7 @@ func (h *Handler) AutoMigrate() error {
 	return h.DB().AutoMigrate(
 		&objects.SourceServer{},
 		&objects.ServerOptions{},
+		&objects.ACLOptions{},
 		&objects.TargetServer{},
 		&objects.Route{},
 		&objects.Authentication{},

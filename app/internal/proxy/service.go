@@ -87,6 +87,12 @@ func (s *Service) Run(ctx context.Context) error {
 // handler returns an http.Handler that routes requests for the given source server.
 func (s *Service) handler(sourceServerUUID uuid.UUID) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		acl, err := s.repo.GetACLOptions(sourceServerUUID)
+		if err == nil && aclDeny(r, &acl) {
+			log.Printf("proxy/acl: %s %s denied by ACL", r.Method, r.URL.Path)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		route, err := s.repo.FindRouteBySourceMethodPath(sourceServerUUID, r.Method, r.URL.Path)
 		if err != nil {
 			log.Printf("proxy/auth: %s %s no route match", r.Method, r.URL.Path)
@@ -94,6 +100,20 @@ func (s *Service) handler(sourceServerUUID uuid.UUID) http.Handler {
 			return
 		}
 		log.Printf("proxy/auth: %s %s route=%s target_server=%s", r.Method, r.URL.Path, route.RouteUUID, route.TargetServerUUID)
+
+		// Enforce source authentication (client auth) if configured for this route.
+		authorized, err := s.isSourceAuthorized(r, route.RouteUUID)
+		if err != nil {
+			log.Printf("proxy/auth: route=%s source auth error: %v", route.RouteUUID, err)
+			http.Error(w, "source auth error", http.StatusInternalServerError)
+			return
+		}
+		if !authorized {
+			log.Printf("proxy/auth: route=%s source auth denied", route.RouteUUID)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		target, err := s.repo.GetTargetServer(route.TargetServerUUID)
 		if err != nil {
 			log.Printf("proxy/auth: target server not found: %v", err)
@@ -181,4 +201,52 @@ func joinPath(base, p string) string {
 		return "/" + p
 	}
 	return base + "/" + p
+}
+
+// isSourceAuthorized returns true if the incoming request is allowed by the
+// route's configured source authentications. If no source authentications are
+// configured for the route, it returns true (no auth required).
+//
+// If one or more source authentications are configured, the incoming
+// Authorization header must match at least one of the configured credentials,
+// formatted according to its TokenType (e.g. "Bearer <token>" for bearer).
+func (s *Service) isSourceAuthorized(r *http.Request, routeUUID uuid.UUID) (bool, error) {
+	list, err := s.repo.ListSourceAuthsForRoute(routeUUID)
+	if err != nil {
+		return false, err
+	}
+	if len(list) == 0 {
+		// No source auth configured for this route.
+		return true, nil
+	}
+	incoming := strings.TrimSpace(r.Header.Get("Authorization"))
+	if incoming == "" {
+		// Auth required but no credentials provided.
+		return false, nil
+	}
+	for _, mapping := range list {
+		auth, err := s.repo.GetAuthenticationWithPlainToken(mapping.AuthenticationUUID)
+		if err != nil {
+			return false, err
+		}
+		if expected := buildAuthHeaderValue(&auth); expected != "" && incoming == expected {
+			return true, nil
+		}
+	}
+	// No match found among allowed source authentications.
+	return false, nil
+}
+
+// buildAuthHeaderValue formats an Authentication as an Authorization header
+// value, mirroring the behavior used for target auth in director().
+func buildAuthHeaderValue(a *schema.Authentication) string {
+	if a == nil || a.Token == "" {
+		return ""
+	}
+	switch a.TokenType {
+	case "bearer", "Bearer":
+		return "Bearer " + a.Token
+	default:
+		return a.Token
+	}
 }

@@ -39,6 +39,7 @@ app/
 ## Proxy
 
 - **`internal/proxy`**: Runs one HTTP listener per source server (bind to each source’s host:port). For each request, looks up a route by (source server, method, path) via `Repository.FindRouteBySourceMethodPath`, loads the target server, builds the backend URL (target protocol, host, port, base_path, route target_path, query), and forwards the request with `net/http/httputil.ReverseProxy`. Route matching is **exact** (method + path). The package depends only on `database.Repository` and `database/schema`; no GORM or `database/objects`. `main` starts the proxy service in parallel with the UI server using the same `context` for graceful shutdown.
+- **Per-source ACL**: The proxy can enforce optional per–source-server ACL rules via `schema.ACLOptions` (backed by `objects.ACLOptions`). Before route lookup, it loads ACL options for the source and may allow/deny the request based on the client IP (from a configurable header or `RemoteAddr`) against allow/deny lists of IPs/CIDRs.
 
 ## Conventions to follow
 

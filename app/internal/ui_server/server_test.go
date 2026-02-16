@@ -26,6 +26,8 @@ func (stubRepo) UpdateSourceServer(schema.SourceServer) error               { re
 func (stubRepo) DeleteSourceServer(uuid.UUID) error                         { return nil }
 func (stubRepo) GetServerOptions(uuid.UUID) (schema.ServerOptions, error)   { return schema.ServerOptions{}, nil }
 func (stubRepo) SetServerOptions(schema.ServerOptions) error                { return nil }
+func (stubRepo) GetACLOptions(uuid.UUID) (schema.ACLOptions, error)         { return schema.ACLOptions{}, nil }
+func (stubRepo) SetACLOptions(schema.ACLOptions) error                      { return nil }
 func (stubRepo) ListTargetServers() ([]schema.TargetServer, error)          { return nil, nil }
 func (stubRepo) CreateTargetServer(schema.TargetServer) error               { return nil }
 func (stubRepo) GetTargetServer(uuid.UUID) (schema.TargetServer, error)     { return schema.TargetServer{}, gorm.ErrRecordNotFound }

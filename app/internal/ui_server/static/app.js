@@ -126,6 +126,18 @@ async function submitCreateSource(e) {
       return;
     }
   }
+  const aclAllow = (fd.get('acl_allow_list') || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+  const aclDeny = (fd.get('acl_deny_list') || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+  const aclResult = await api.setSourceServerACL(uuid, {
+    mode: fd.get('acl_mode') || 'off',
+    client_ip_header: (fd.get('acl_client_ip_header') || '').trim(),
+    allow_list: aclAllow,
+    deny_list: aclDeny
+  });
+  if (!aclResult.ok) {
+    showError(errEl, aclResult.error || 'Failed to save ACL options');
+    return;
+  }
   closeCreateSourceModal();
   loadSourceServers();
 }
@@ -151,6 +163,19 @@ async function editSource(uuid) {
   } else {
     form.querySelector('[name="tls_cert_path"]').value = '';
     form.querySelector('[name="tls_key_path"]').value = '';
+  }
+  const aclResult = await api.getSourceServerACL(uuid);
+  if (aclResult.ok && aclResult.data) {
+    const acl = aclResult.data;
+    form.querySelector('[name="acl_mode"]').value = acl.mode || 'off';
+    form.querySelector('[name="acl_client_ip_header"]').value = acl.client_ip_header || '';
+    form.querySelector('[name="acl_allow_list"]').value = (acl.allow_list || []).join('\n');
+    form.querySelector('[name="acl_deny_list"]').value = (acl.deny_list || []).join('\n');
+  } else {
+    form.querySelector('[name="acl_mode"]').value = 'off';
+    form.querySelector('[name="acl_client_ip_header"]').value = '';
+    form.querySelector('[name="acl_allow_list"]').value = '';
+    form.querySelector('[name="acl_deny_list"]').value = '';
   }
   toggleEditSourceTls();
   showError(document.getElementById('edit-source-error'), '');
@@ -186,6 +211,18 @@ async function submitEditSource(e) {
       showError(errEl, optsResult.error || 'Failed to save TLS options');
       return;
     }
+  }
+  const aclAllow = (fd.get('acl_allow_list') || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+  const aclDeny = (fd.get('acl_deny_list') || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+  const aclResult = await api.setSourceServerACL(uuid, {
+    mode: fd.get('acl_mode') || 'off',
+    client_ip_header: (fd.get('acl_client_ip_header') || '').trim(),
+    allow_list: aclAllow,
+    deny_list: aclDeny
+  });
+  if (!aclResult.ok) {
+    showError(errEl, aclResult.error || 'Failed to save ACL options');
+    return;
   }
   closeEditSourceModal();
   loadSourceServers();

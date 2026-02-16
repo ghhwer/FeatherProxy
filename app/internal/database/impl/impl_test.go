@@ -17,6 +17,7 @@ func migrateDB(t *testing.T, db *gorm.DB) {
 	if err := db.AutoMigrate(
 		&objects.SourceServer{},
 		&objects.ServerOptions{},
+		&objects.ACLOptions{},
 		&objects.TargetServer{},
 		&objects.Route{},
 		&objects.Authentication{},

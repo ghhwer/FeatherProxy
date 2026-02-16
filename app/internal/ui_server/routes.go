@@ -107,6 +107,17 @@ func (s *Server) handleSourceServerByID(w http.ResponseWriter, r *http.Request) 
 		}
 		return
 	}
+	if len(parts) == 2 && parts[1] == "acl" {
+		switch r.Method {
+		case http.MethodGet:
+			handlers.GetACLOptions(s.repo, w, r, uuidPart)
+		case http.MethodPut:
+			handlers.SetACLOptions(s.repo, w, r, uuidPart)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
 	if len(parts) == 2 {
 		http.NotFound(w, r)
 		return

@@ -7,6 +7,7 @@ FeatherProxy is an open-source **API gateway** that routes incoming requests to 
 - **Listen** on one or more addresses (HTTP or HTTPS), each tied to a “source server.”
 - **Match** each request by method and path to a **route**, which points to a **target** backend (protocol, host, port, path).
 - **Forward** the request to the target, optionally adding authentication (tokens stored encrypted, decrypted only when proxying).
+- **Control access** with optional per–source-server ACLs (allow/deny lists of client IPs/CIDRs, using a configurable header or the connection address).
 - **Manage** everything via the built-in UI (default: `http://localhost:4545`) or by extending the API.
 
 ## Quick start
@@ -131,6 +132,7 @@ Create `app/.env` from `app/.env.example`. Main options:
 - **Repository** — Single interface for source/target servers, routes, and authentications. Used by both the UI and the proxy; no direct DB access in HTTP or proxy code.
 - **Caching** — Optional (`CACHING_STRATEGY` and `CACHE_TTL`). When enabled, the repository caches reads (e.g. routes, server lists, auth metadata) and invalidates on writes. Sensitive data (e.g. decrypted tokens) is never cached.
 - **Authentication** — Stored in the repository with tokens encrypted at rest. The UI uses the repository for CRUD (tokens are masked in API responses). The proxy uses a dedicated method (DB only, not cached) to get the plain token when forwarding to backends.
+- **Access control lists (ACLs)** — Per–source-server ACL options let you define allow/deny lists of client IPs/CIDRs and choose which HTTP header (e.g. `X-Forwarded-For`, `X-Real-IP`) is used to determine the client address; when enabled, the proxy enforces these rules before routing.
 
 ## License
 
