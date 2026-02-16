@@ -87,10 +87,10 @@ flowchart LR
       L1[Listener A host:port]
       L2[Listener B host:port]
     end
-    Repo[Repository]
+  Repo[Repository]
     subgraph persistence [Persistence]
       DB[(Database)]
-      Cache[(Cache optional)]
+      Cache[(Shared cache optional)]
     end
   end
   subgraph backends [Target backends]
@@ -112,7 +112,7 @@ flowchart LR
 - **Clients** hit the proxy on the host:port of a **source server**.
 - **Proxy** (per-source listeners) receives the request, looks up a **route** by (source, method, path), resolves the **target server**, and reverse-proxies to the backend.
 - **Repository** is the single persistence layer for source/target servers, routes, and authentications. Both the UI server and the proxy use it.
-- **Database** holds all state; an optional **cache** (memory or Redis) can speed up reads; sensitive data (e.g. decrypted tokens) is never cached.
+- **Database** holds all state; an optional **shared cache** (memory or Redis) can speed up reads; sensitive data (e.g. decrypted tokens) is never cached.
 
 ## Configuration
 
@@ -130,9 +130,19 @@ Create `app/.env` from `app/.env.example`. Main options:
 ## Features in brief
 
 - **Repository** — Single interface for source/target servers, routes, and authentications. Used by both the UI and the proxy; no direct DB access in HTTP or proxy code.
-- **Caching** — Optional (`CACHING_STRATEGY` and `CACHE_TTL`). When enabled, the repository caches reads (e.g. routes, server lists, auth metadata) and invalidates on writes. Sensitive data (e.g. decrypted tokens) is never cached.
+- **Caching** — Optional (`CACHING_STRATEGY` and `CACHE_TTL`). When enabled, a single shared cache instance (memory or Redis stub) is created from env and used by both the repository (for reads with invalidation on writes) and the proxy’s DNS ACL hostname resolver. Sensitive data (e.g. decrypted tokens) is never cached.
 - **Authentication** — Stored in the repository with tokens encrypted at rest. The UI uses the repository for CRUD (tokens are masked in API responses). The proxy uses a dedicated method (DB only, not cached) to get the plain token when forwarding to backends.
-- **Access control lists (ACLs)** — Per–source-server ACL options let you define allow/deny lists of client IPs/CIDRs and choose which HTTP header (e.g. `X-Forwarded-For`, `X-Real-IP`) is used to determine the client address; when enabled, the proxy enforces these rules before routing.
+- **Access control lists (ACLs)** — Per–source-server ACL options let you define allow/deny lists of client IPs/CIDRs **and hostnames**. ACL entries may be:
+  - exact IPs (e.g. `192.168.1.10`, `2001:db8::1`)
+  - CIDRs (e.g. `10.0.0.0/8`, `2001:db8::/32`)
+  - exact hostnames (e.g. `host1.internal.com.br`)
+  - wildcard hostnames with a single leading `*.` (e.g. `*.internal.com.br`)
+  
+  The proxy determines the client IP from a configurable header (e.g. `X-Forwarded-For`, `X-Real-IP`) or the connection address, then:
+  - matches IP/CIDR entries directly against that IP, and
+  - for hostname and wildcard entries, performs **reverse DNS** on the client IP and matches the resulting hostnames (on a label boundary for wildcards).
+  
+  DNS results are cached using the same shared cache instance and TTL as the main cache (`CACHE_TTL`), so repeated checks do not spam DNS. If reverse DNS is missing or misconfigured for a client IP, hostname entries simply do not match for that request and ACL semantics for IP/CIDR rules still apply as usual.
 
 ## License
 

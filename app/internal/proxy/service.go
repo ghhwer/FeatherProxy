@@ -1,29 +1,92 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
+	"time"
 
+	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database"
 	"FeatherProxy/app/internal/database/schema"
 
 	"github.com/google/uuid"
 )
 
-// Service runs one HTTP listener per source server and proxies matching requests to target servers.
-type Service struct {
-	repo database.Repository
+// maxDebugPayloadBytes is the maximum request body bytes to log when debug payload is enabled.
+const maxDebugPayloadBytes = 2048 << 10 // 2MB
+
+var debugPayloadFileMu sync.Mutex
+
+// debugPayload returns true when FEATHERPROXY_DEBUG_PAYLOAD is set to "1" or "true".
+func debugPayload() bool {
+	v := os.Getenv("FEATHERPROXY_DEBUG_PAYLOAD")
+	return v == "1" || strings.EqualFold(v, "true")
 }
 
-// NewService returns a proxy service that uses the given repository for route and server lookups.
-func NewService(repo database.Repository) *Service {
-	return &Service{repo: repo}
+// debugPayloadFilePath returns FEATHERPROXY_DEBUG_PAYLOAD_FILE when debug is enabled. If set, payloads are written there instead of stdout.
+func debugPayloadFilePath() string {
+	return os.Getenv("FEATHERPROXY_DEBUG_PAYLOAD_FILE")
+}
+
+// peekAndRestoreBody reads up to maxDebugPayloadBytes from r.Body, writes it to the debug file (or log), then
+// replaces r.Body with a reader that yields the same bytes so the proxy forwards the full body.
+func peekAndRestoreBody(r *http.Request) {
+	prefix, err := io.ReadAll(io.LimitReader(r.Body, maxDebugPayloadBytes))
+	if err != nil {
+		log.Printf("proxy/debug: read body prefix: %v", err)
+	}
+	truncated := len(prefix) == maxDebugPayloadBytes
+	r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(prefix), r.Body))
+	if len(prefix) == 0 {
+		return
+	}
+	msg := fmt.Sprintf("%s %s %d bytes", r.Method, r.URL.Path, len(prefix))
+	if truncated {
+		msg += " (truncated)"
+	}
+	line := time.Now().Format(time.RFC3339) + " " + msg + "\n" + string(prefix) + "\n"
+	if path := debugPayloadFilePath(); path != "" {
+		debugPayloadFileMu.Lock()
+		if f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
+			_, _ = f.WriteString(line)
+			_ = f.Close()
+		} else {
+			log.Printf("proxy/debug: write payload file: %v", err)
+		}
+		debugPayloadFileMu.Unlock()
+	} else {
+		if truncated {
+			log.Printf("proxy/debug: %s body (first %d bytes, truncated): %s", msg, len(prefix), string(prefix))
+		} else {
+			log.Printf("proxy/debug: %s body: %s", msg, string(prefix))
+		}
+	}
+}
+
+// Service runs one HTTP listener per source server and proxies matching requests to target servers.
+type Service struct {
+	repo     database.Repository
+	resolver HostnameResolver
+}
+
+// NewService returns a proxy service that uses the given repository for route
+// and server lookups. It configures a HostnameResolver for ACL hostname and
+// wildcard matching, using the same cache instance and TTL as the database
+// cache when available.
+func NewService(repo database.Repository, c cache.Cache, cacheTTL time.Duration) *Service {
+	return &Service{
+		repo:     repo,
+		resolver: NewResolver(c, cacheTTL),
+	}
 }
 
 // Run starts a listener for each source server and blocks until ctx is cancelled.
@@ -87,8 +150,14 @@ func (s *Service) Run(ctx context.Context) error {
 // handler returns an http.Handler that routes requests for the given source server.
 func (s *Service) handler(sourceServerUUID uuid.UUID) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if debugPayload() && r.Body != nil {
+			peekAndRestoreBody(r)
+		}
 		acl, err := s.repo.GetACLOptions(sourceServerUUID)
-		if err == nil && aclDeny(r, &acl) {
+		if err != nil {
+			log.Printf("proxy: get ACL options: %v", err)
+		}
+		if err == nil && aclDeny(r.Context(), r, &acl, s.resolver) {
 			log.Printf("proxy/acl: %s %s denied by ACL", r.Method, r.URL.Path)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -148,12 +217,14 @@ func director(target *url.URL, incoming *http.Request, targetAuth *schema.Authen
 		out.URL.Path = target.Path
 		out.URL.RawQuery = target.RawQuery
 		out.Host = target.Host
-		if incoming.RemoteAddr != "" {
+		// Check if incoming contains X-Forwarded-For or X-Forwarded-Proto, if not, set them.
+		if incoming.Header.Get("X-Forwarded-For") == "" {
 			out.Header.Set("X-Forwarded-For", incoming.RemoteAddr)
 		}
-		if incoming.TLS != nil {
+		if incoming.Header.Get("X-Forwarded-Proto") == "" {
 			out.Header.Set("X-Forwarded-Proto", "https")
-		} else {
+		}
+		if incoming.Header.Get("X-Forwarded-Proto") == "http" {
 			out.Header.Set("X-Forwarded-Proto", "http")
 		}
 		if targetAuth != nil && targetAuth.Token != "" {

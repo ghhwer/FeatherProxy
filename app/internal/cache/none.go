@@ -30,3 +30,4 @@ func (NoOp) DeleteByPrefix(_ context.Context, _ string) error {
 
 // Close is a no-op.
 func (NoOp) Close() {}
+

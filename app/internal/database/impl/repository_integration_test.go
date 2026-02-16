@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"FeatherProxy/app/internal/database/cache"
+	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database/objects"
 	"FeatherProxy/app/internal/database/schema"
 

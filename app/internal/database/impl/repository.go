@@ -1,9 +1,10 @@
 package impl
 
 import (
-	"FeatherProxy/app/internal/database/cache"
-	"FeatherProxy/app/internal/database/repo"
 	"time"
+
+	"FeatherProxy/app/internal/cache"
+	"FeatherProxy/app/internal/database/repo"
 
 	"gorm.io/gorm"
 )

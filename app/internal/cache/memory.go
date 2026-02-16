@@ -22,10 +22,10 @@ type Memory struct {
 	defaultTTL time.Duration
 	stop       chan struct{}
 
-	hits   atomic.Uint64
-	misses atomic.Uint64
-	sets   atomic.Uint64
-	deletesOperations atomic.Uint64
+	hits                atomic.Uint64
+	misses              atomic.Uint64
+	sets                atomic.Uint64
+	deletesOperations   atomic.Uint64
 	evictionsOperations atomic.Uint64
 }
 
@@ -154,3 +154,4 @@ func (m *Memory) evictExpired() {
 func (m *Memory) Close() {
 	close(m.stop)
 }
+

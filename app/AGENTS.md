@@ -15,7 +15,6 @@ app/
     │   ├── repository.go   # Repository type alias, NewRepository, NewCachedRepository
     │   ├── repo/           # Repository interface and ErrProtocolMismatch (no impl deps)
     │   ├── impl/           # Concrete repository (GORM + cache); cache_helpers.go has getCached/invalidate and keys
-    │   ├── cache/          # Cache interface (Get, Set, Delete, DeleteByPrefix); strategies: none, memory, redis stub
     │   ├── token/          # EncryptToken / DecryptToken for auth tokens (used by impl)
     │   ├── schema/         # Domain / API types (no ORM; JSON-friendly)
     │   │   └── <ENTITY>.go
@@ -23,6 +22,7 @@ app/
     │       └── <ENTITY>.go
     ├── proxy/          # Proxy service: per–source-server listeners, route lookup, reverse proxy
     │   └── service.go
+    ├── cache/          # Shared cache interface and implementations (none, memory, redis stub); configured via env
     └── ui_server/...   # HTTP server struct, NewServer(addr, repo, staticDir), Routes(), Run(ctx)
 ```
 

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"FeatherProxy/app/internal/database/cache"
+	"FeatherProxy/app/internal/cache"
 
 	"github.com/google/uuid"
 )
