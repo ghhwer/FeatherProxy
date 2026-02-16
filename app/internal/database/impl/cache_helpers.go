@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"FeatherProxy/app/internal/database/cache"
+	"FeatherProxy/app/internal/cache"
 
 	"github.com/google/uuid"
 )
@@ -26,6 +26,7 @@ const (
 	keyPrefixRouteSourceAuths    = "route_source_auths:"
 	keyPrefixTargetAuthForRoute  = "target_auth_for_route:"
 	keyPrefixServerOptions       = "server_options:"
+	keyPrefixACLOptions          = "acl_options:"
 )
 
 func keySourceServer(id uuid.UUID) string              { return keyPrefixSourceServer + id.String() }
@@ -40,6 +41,7 @@ func keyAuth(id uuid.UUID) string                   { return keyPrefixAuth + id.
 func keyRouteSourceAuths(routeID uuid.UUID) string   { return keyPrefixRouteSourceAuths + routeID.String() }
 func keyTargetAuthForRoute(routeID uuid.UUID) string { return keyPrefixTargetAuthForRoute + routeID.String() }
 func keyServerOptions(sourceID uuid.UUID) string    { return keyPrefixServerOptions + sourceID.String() }
+func keyACLOptions(sourceID uuid.UUID) string      { return keyPrefixACLOptions + sourceID.String() }
 
 func (r *repository) cacheCtx() context.Context { return context.Background() }
 

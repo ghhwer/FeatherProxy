@@ -107,3 +107,4 @@ func TestFromEnv_parseTTL_coverage(t *testing.T) {
 		t.Errorf("CACHE_TTL=0: got ttl %v, want DefaultTTL", ttl)
 	}
 }
+

@@ -39,6 +39,8 @@ go.work.sum
 _docs_scratchpad/
 # TLS test files
 _tls_test/
+# logs
+debug.log
 
 # Binary
 featherproxy

@@ -15,7 +15,6 @@ app/
     │   ├── repository.go   # Repository type alias, NewRepository, NewCachedRepository
     │   ├── repo/           # Repository interface and ErrProtocolMismatch (no impl deps)
     │   ├── impl/           # Concrete repository (GORM + cache); cache_helpers.go has getCached/invalidate and keys
-    │   ├── cache/          # Cache interface (Get, Set, Delete, DeleteByPrefix); strategies: none, memory, redis stub
     │   ├── token/          # EncryptToken / DecryptToken for auth tokens (used by impl)
     │   ├── schema/         # Domain / API types (no ORM; JSON-friendly)
     │   │   └── <ENTITY>.go
@@ -23,6 +22,7 @@ app/
     │       └── <ENTITY>.go
     ├── proxy/          # Proxy service: per–source-server listeners, route lookup, reverse proxy
     │   └── service.go
+    ├── cache/          # Shared cache interface and implementations (none, memory, redis stub); configured via env
     └── ui_server/...   # HTTP server struct, NewServer(addr, repo, staticDir), Routes(), Run(ctx)
 ```
 
@@ -39,6 +39,7 @@ app/
 ## Proxy
 
 - **`internal/proxy`**: Runs one HTTP listener per source server (bind to each source’s host:port). For each request, looks up a route by (source server, method, path) via `Repository.FindRouteBySourceMethodPath`, loads the target server, builds the backend URL (target protocol, host, port, base_path, route target_path, query), and forwards the request with `net/http/httputil.ReverseProxy`. Route matching is **exact** (method + path). The package depends only on `database.Repository` and `database/schema`; no GORM or `database/objects`. `main` starts the proxy service in parallel with the UI server using the same `context` for graceful shutdown.
+- **Per-source ACL**: The proxy can enforce optional per–source-server ACL rules via `schema.ACLOptions` (backed by `objects.ACLOptions`). Before route lookup, it loads ACL options for the source and may allow/deny the request based on the client IP (from a configurable header or `RemoteAddr`) against allow/deny lists of IPs/CIDRs.
 
 ## Conventions to follow
 

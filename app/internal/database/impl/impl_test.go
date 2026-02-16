@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"FeatherProxy/app/internal/database/cache"
+	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database/objects"
 	"FeatherProxy/app/internal/database/repo"
 
@@ -17,6 +17,7 @@ func migrateDB(t *testing.T, db *gorm.DB) {
 	if err := db.AutoMigrate(
 		&objects.SourceServer{},
 		&objects.ServerOptions{},
+		&objects.ACLOptions{},
 		&objects.TargetServer{},
 		&objects.Route{},
 		&objects.Authentication{},

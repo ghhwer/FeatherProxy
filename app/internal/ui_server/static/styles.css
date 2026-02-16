@@ -326,6 +326,33 @@ body {
   flex-wrap: wrap;
 }
 
+.stats-summary-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.stats-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stats-panel h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+
+.stats-tps-container {
+  min-height: 80px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
 /* ----- Buttons ----- */
 button,
 .btn {
@@ -443,7 +470,9 @@ tr:last-child td {
   border-radius: var(--radius);
   padding: 1.5rem 1.75rem;
   width: 100%;
-  max-width: 420px;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
   animation: modalIn 0.2s ease;
 }
@@ -484,7 +513,8 @@ tr:last-child td {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
   width: 100%;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
@@ -496,10 +526,17 @@ tr:last-child td {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 3rem;
+  max-height: 40vh;
 }
 
 .modal-actions {

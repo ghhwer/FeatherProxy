@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database"
-	"FeatherProxy/app/internal/database/cache"
 	"FeatherProxy/app/internal/proxy"
-	"FeatherProxy/app/internal/ui_server"
+	"FeatherProxy/app/internal/stats"
+	server "FeatherProxy/app/internal/ui_server"
 
 	"github.com/joho/godotenv"
 )
@@ -33,17 +35,19 @@ func main() {
 	}
 	log.Println("database: connected and migrated")
 
+	// Initialize the repository and cache.
 	var repo database.Repository
-	if c, ttl, err := cache.FromEnv(); err != nil {
-		log.Printf("cache: %v (using repo without cache)", err)
-		repo = database.NewRepository(db.DB())
-	} else if c != nil {
-		defer c.Close() // stop cache goroutines so process can exit on Ctrl+C
-		repo = database.NewCachedRepository(db.DB(), c, ttl)
-		log.Println("cache: enabled")
-	} else {
-		repo = database.NewRepository(db.DB())
+	var sharedCache cache.Cache
+	var cacheTTL time.Duration
+	sharedCache, cacheTTL, err = cache.FromEnv()
+
+	if err != nil {
+		log.Printf("cache: %v (cache not enabled)", err)
 	}
+	repo = database.NewRepository(db.DB(), sharedCache, cacheTTL)
+
+	// UI server.
+	// Reload channel to restart the proxy when the UI is reloaded.
 	reloadChan := make(chan struct{}, 1)
 	srv := server.NewServer(":4545", repo, "internal/ui_server/static", func() {
 		select {
@@ -51,13 +55,24 @@ func main() {
 		default:
 		}
 	})
-	proxyService := proxy.NewService(repo)
+
+	// Context to stop the server and proxy.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// Cancel the whole process if the UI server fails (e.g. port in use).
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// Stats service (async recorder for proxy metrics).
+	statsConfig := stats.ConfigFromEnv()
+	statsSvc := stats.NewService(repo, statsConfig)
+	go func() {
+		statsSvc.Run(runCtx)
+	}()
+
+	// Proxy service (optional stats recorder).
+	proxyService := proxy.NewService(repo, sharedCache, cacheTTL, statsSvc)
 
 	go func() {
 		log.Println("server: listening on http://localhost:4545")

@@ -132,3 +132,4 @@ func TestMemory_Close_idempotent(t *testing.T) {
 	// So we only test single Close here; plan said "optional" for double-close.
 	_ = m
 }
+

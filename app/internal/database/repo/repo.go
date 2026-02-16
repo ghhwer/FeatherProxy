@@ -2,6 +2,7 @@ package repo
 
 import (
 	"errors"
+	"time"
 
 	"FeatherProxy/app/internal/database/schema"
 
@@ -22,6 +23,9 @@ type Repository interface {
 	// Server options (1:1 with source server; e.g. TLS for HTTPS)
 	GetServerOptions(sourceServerUUID uuid.UUID) (schema.ServerOptions, error)
 	SetServerOptions(opts schema.ServerOptions) error
+	// ACL options (1:1 with source server; allow/deny by client IP/CIDR)
+	GetACLOptions(sourceServerUUID uuid.UUID) (schema.ACLOptions, error)
+	SetACLOptions(opts schema.ACLOptions) error
 	// Target servers
 	CreateTargetServer(t schema.TargetServer) error
 	GetTargetServer(uuid uuid.UUID) (schema.TargetServer, error)
@@ -50,4 +54,16 @@ type Repository interface {
 	GetTargetAuthForRoute(routeUUID uuid.UUID) (uuid.UUID, bool, error)
 	SetTargetAuthForRoute(routeUUID uuid.UUID, authUUID *uuid.UUID) error
 	GetTargetAuthenticationWithPlainToken(routeUUID uuid.UUID) (schema.Authentication, bool, error) // For proxy
+
+	// Proxy stats (no cache; write-heavy)
+	CreateProxyStats(stats []schema.ProxyStat) error
+	ListProxyStats(limit, offset int, since *time.Time) ([]schema.ProxyStat, int64, error)
+	DeleteProxyStatsOlderThan(until time.Time) (int64, error)
+	ClearAllProxyStats() error
+	StatsSummary() (schema.StatsSummary, error)
+	StatsByRoute(since *time.Time, limit int) ([]schema.RouteCount, error)
+	StatsByCaller(since *time.Time, limit int) ([]schema.CallerCount, error)
+	StatsBySourceServer(since *time.Time) ([]schema.ServerCount, error)
+	StatsByTargetServer(since *time.Time) ([]schema.ServerCount, error)
+	StatsTPS(since time.Time, bucketDuration time.Duration) ([]schema.BucketCount, error)
 }

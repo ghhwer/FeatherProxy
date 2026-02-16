@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"FeatherProxy/app/internal/database/cache"
+	"FeatherProxy/app/internal/cache"
 	"FeatherProxy/app/internal/database/objects"
 	"FeatherProxy/app/internal/database/schema"
 
@@ -23,6 +23,7 @@ func TestRepositoryIntegration_CRUD_and_FindRoute(t *testing.T) {
 	if err := db.AutoMigrate(
 		&objects.SourceServer{},
 		&objects.ServerOptions{},
+		&objects.ACLOptions{},
 		&objects.TargetServer{},
 		&objects.Route{},
 		&objects.Authentication{},
@@ -93,5 +94,23 @@ func TestRepositoryIntegration_CRUD_and_FindRoute(t *testing.T) {
 	}
 	if target2.TargetServerUUID != targetID {
 		t.Errorf("GetTargetServer (cached): got %+v", target2)
+	}
+
+	// ACL options: set then get (exercises cache)
+	acl := schema.ACLOptions{
+		SourceServerUUID: sourceID,
+		Mode:             "allow_only",
+		ClientIPHeader:   "X-Forwarded-For",
+		AllowList:        []string{"192.168.1.0/24"},
+	}
+	if err := r.SetACLOptions(acl); err != nil {
+		t.Fatalf("SetACLOptions: %v", err)
+	}
+	gotACL, err := r.GetACLOptions(sourceID)
+	if err != nil {
+		t.Fatalf("GetACLOptions: %v", err)
+	}
+	if gotACL.Mode != "allow_only" || gotACL.ClientIPHeader != "X-Forwarded-For" || len(gotACL.AllowList) != 1 || gotACL.AllowList[0] != "192.168.1.0/24" {
+		t.Errorf("GetACLOptions: got %+v", gotACL)
 	}
 }

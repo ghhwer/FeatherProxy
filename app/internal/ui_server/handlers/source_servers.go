@@ -148,3 +148,58 @@ func SetServerOptions(repo database.Repository, w http.ResponseWriter, r *http.R
 	current, _ := repo.GetServerOptions(id)
 	respondJSON(w, http.StatusOK, current)
 }
+
+func GetACLOptions(repo database.Repository, w http.ResponseWriter, _ *http.Request, sourceIDStr string) {
+	id, ok := parseUUIDParam(w, sourceIDStr, "invalid source server UUID")
+	if !ok {
+		return
+	}
+	if _, err := repo.GetSourceServer(id); !handleRepoGetError(w, err) {
+		return
+	}
+	opts, err := repo.GetACLOptions(id)
+	if !handleRepoGetError(w, err) {
+		return
+	}
+	respondJSON(w, http.StatusOK, opts)
+}
+
+func SetACLOptions(repo database.Repository, w http.ResponseWriter, r *http.Request, sourceIDStr string) {
+	id, ok := parseUUIDParam(w, sourceIDStr, "invalid source server UUID")
+	if !ok {
+		return
+	}
+	if _, err := repo.GetSourceServer(id); !handleRepoGetError(w, err) {
+		return
+	}
+	var body struct {
+		Mode           string   `json:"mode"`
+		ClientIPHeader string   `json:"client_ip_header"`
+		AllowList      []string `json:"allow_list"`
+		DenyList       []string `json:"deny_list"`
+	}
+	if !decodeJSON(w, r, &body) {
+		return
+	}
+	mode := body.Mode
+	if mode == "" {
+		mode = "off"
+	}
+	if mode != "off" && mode != "allow_only" && mode != "deny_only" {
+		respondJSONError(w, http.StatusBadRequest, "mode must be off, allow_only, or deny_only")
+		return
+	}
+	opts := schema.ACLOptions{
+		SourceServerUUID: id,
+		Mode:             mode,
+		ClientIPHeader:   body.ClientIPHeader,
+		AllowList:         body.AllowList,
+		DenyList:          body.DenyList,
+	}
+	if err := repo.SetACLOptions(opts); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	current, _ := repo.GetACLOptions(id)
+	respondJSON(w, http.StatusOK, current)
+}
